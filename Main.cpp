@@ -1,32 +1,17 @@
-#include <iostream>
-#include <fstream>
-#include "cpr/cpr.h"
-#include "gumbo.h"
-#include<windows.h>
-#include <chrono>
-#include <thread>
-#include <stdlib.h>
-#include <sstream>
-#include <filesystem>
-//#include <sqlpp11/select.h>
-//#include <sqlpp11/alias_provider.h>
-#include <mysql/mysql.h>
-//namespace fs = std::filesystem;
+#include "Main.h"
+
 #define STRING_SIZE 50
 #define NOT_FOUND_TEXT "database-detail-page-not-found-message"
 #define MSG_DELAY 100
-//std::wofstream fileOut("result.txt");
 
-unsigned int check_int_input(char* arg)
+unsigned int check_int_input(const char* arg)
 {
     std::istringstream ss(arg);
     unsigned int x;
-    if (!(ss >> x)) {
+    if (!(ss >> x))
         return 0; // std::cerr << "Invalid number: " << arg << '\n';
-    }
-    else if (!ss.eof()) {
+    else if (!ss.eof())
         return 0; // std::cerr << "Trailing characters after number: " << arg << '\n';
-    }
     return x;
 }
 
@@ -47,8 +32,26 @@ void msg_delay(std::string message, ...)
     vfprintf(stderr, message.c_str(), vl);
     va_end(vl);
     //std::cerr << message.c_str();
-    std::chrono::milliseconds dura(MSG_DELAY);
-    std::this_thread::sleep_for(dura);
+    std::chrono::milliseconds duration(MSG_DELAY);
+    std::this_thread::sleep_for(duration);
+}
+
+void msg_nodelay(std::string message, ...)
+{
+    va_list vl;
+            va_start(vl, message);
+
+    /*const char* cur;
+    do
+    {
+        cur = va_arg(vl, const char*);
+        if (cur)
+            addStrategy(cur);
+    } while (cur);*/
+
+
+    vfprintf(stderr, message.c_str(), vl);
+    va_end(vl);
 }
 
 char* strstri(const char* haystack, const char* needle)
@@ -75,15 +78,15 @@ char* strstri(const char* haystack, const char* needle)
             }
         }
     }
-    return 0;
+    return nullptr;
 }
 
-void writeToFile(const char* text, std::string filename, std::string path = "")
+void writeToFile(const char* text, const std::string& filename, const std::string& path = "")
 {
     if (filename.empty())
         return;
 
-    if (path != "")
+    if (!path.empty())
     {
         std::filesystem::create_directories("./" + path);
         //fs::create_directories("./" + path);
@@ -93,9 +96,7 @@ void writeToFile(const char* text, std::string filename, std::string path = "")
     std::wofstream fileOut(path + filename + ".txt");
     fileOut << text;
     fileOut.close();
-
-    return;
-    // end
+   // end
 
     /*FILE* stream;
     fopen_s(&stream, filename.c_str(), "w+,ccs=UTF-8");
@@ -119,20 +120,22 @@ std::string localeName(unsigned int locId)
 {
     switch (locId)
     {
-    case 1:
-        return "en";
-    case 2:
-        return "ko";
-    case 3:
-        return "fr";
-    case 4:
-        return "de";
-    case 5:
-        return "cn";
-    case 6:
-        return "sp";
-    case 7:
-        return "ru";
+        case 1:
+            return "en";
+        case 2:
+            return "ko";
+        case 3:
+            return "fr";
+        case 4:
+            return "de";
+        case 5:
+            return "cn";
+        case 6:
+            return "sp";
+        case 7:
+            return "ru";
+        default:
+            return "";
     }
 }
 
@@ -162,9 +165,29 @@ std::string typeName(unsigned int typeId)
     }
 }
 
+uint32 questTextId(const std::string& partName)
+{
+    if (partName == "title")
+        return 1;
+    if (partName == "objectives")
+        return 2;
+    if (partName == "details")
+        return 3;
+    if (partName == "requestItemText")
+        return 4;
+    if (partName == "offerRewardText")
+        return 5;
+    if (partName == "endText")
+        return 6;
+    if (partName == "objectiveList")
+        return 7;
+
+    return 0;
+}
+
 std::string loadFromDB()
 {
-    MYSQL* mysql = new MYSQL;
+    auto* mysql = new MYSQL;
     mysql_init(mysql);
     mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, "your_prog_name");
     if (!mysql_real_connect(mysql, "127.0.0.1", "root", "123456", "tbcmangos", 3310, NULL, 0))
@@ -375,13 +398,14 @@ std::string loadFromDB()
     return "";
 }
 
-std::string load_WH_page(std::string type, unsigned int id, unsigned int& error_code, unsigned int locale = 0, unsigned int expansion = 0)
+std::string load_WH_page(CacheType type, unsigned int id, unsigned int& error_code, unsigned int locale = 0, unsigned int expansion = 0)
 {
     // select locale prefix
-    std::string localePrefix = "";
+    std::string localePrefix;
     switch (locale)
     {
     case 1:
+    default:
         break;
     case 2:
         localePrefix = "/ko";
@@ -412,29 +436,29 @@ std::string load_WH_page(std::string type, unsigned int id, unsigned int& error_
     if (expansion == 4)
         expansionPrefix = "";
 
-    cpr::Response response = cpr::Get(cpr::Url{ (std::string("https://") + std::string("wowhead.com/") + expansionPrefix + localePrefix + "/" + type + "=" + std::to_string(id))}, cpr::UserAgent{"Mozilla / 5.0 (Windows NT 10.0; Win64; x64) AppleWebKit / 537.36 (KHTML, like Gecko) Chrome / 99.0.4844.51 Safari / 537.36"});
+    cpr::Response response = cpr::Get(cpr::Url{ (std::string("https://") + std::string("wowhead.com/") + expansionPrefix + localePrefix + "/" + typeName(type) + "=" + std::to_string(id))}, cpr::UserAgent{"Mozilla / 5.0 (Windows NT 10.0; Win64; x64) AppleWebKit / 537.36 (KHTML, like Gecko) Chrome / 99.0.4844.51 Safari / 537.36"});
     error_code = response.status_code;
     return response.text;
 }
 
-bool isNotFound(std::string wh_page)
+bool isNotFound(const std::string& wh_page)
 {
     // "database-detail-page-not-found-message";
     return wh_page.find(NOT_FOUND_TEXT) != std::string::npos;
 }
 
-std::string loadPageOrCache(std::string type, unsigned int id, unsigned int locale = 0, unsigned int expansion = 0, bool silent = false)
+std::string loadPageOrCache(CacheType type, unsigned int id, unsigned int expansion, unsigned int locale, bool silent = false)
 {
-    std::string cacheLocation = "cache/" + expansionName(expansion) + "/" + localeName(locale) + "/" + type + "/";
+    std::string cacheLocation = "cache/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(type) + "/";
     if (!silent)
-        msg_delay("\n> " + type + " #" + std::to_string(id) + ": Loading... \n");
+        msg_delay("\n> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " : Loading... \n");
 
     // Load Wowhead Page or Cache
     std::string wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
     if (!wh_page.empty())
     {
         if (!silent)
-            msg_delay("> " + type + " #" + std::to_string(id) + ": Loaded from Cache! \n");
+            msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " : Loaded from Cache! \n");
     }
     else
     {
@@ -443,12 +467,12 @@ std::string loadPageOrCache(std::string type, unsigned int id, unsigned int loca
         if (error_code >= 400)
         {
             if (!silent)
-                msg_delay("> " + type + " #" + std::to_string(id) + ": Not Found! (404) \n");
+                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Not Found! (404) \n");
         }
         else if (isNotFound(wh_page))
         {
             if (!silent)
-                msg_delay("> " + type + " #" + std::to_string(id) + ": Not Found! (Not Found) \n");
+                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Not Found! (Not Found) \n");
 
             return "";
         }
@@ -456,9 +480,8 @@ std::string loadPageOrCache(std::string type, unsigned int id, unsigned int loca
         {
             if (!silent)
             {
-                msg_delay("> " + type + " #" + std::to_string(id) + ": Loaded from WH! \n");
-                msg_delay("> " + type + " #" + std::to_string(id) + ": Loaded from WH! \n");
-                msg_delay("> " + type + " #" + std::to_string(id) + ": Caching... \n");
+                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Loaded from WH! \n");
+                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " sCaching... \n");
             }
             writeToFile(wh_page.c_str(), std::to_string(id), cacheLocation);
         }
@@ -466,70 +489,9 @@ std::string loadPageOrCache(std::string type, unsigned int id, unsigned int loca
     return wh_page;
 }
 
-std::string extract_html_page()
+void cachePagesRange(CacheType type, unsigned int min_id, unsigned int max_id, unsigned int locale = 0, unsigned int expansion = 0)
 {
-    cpr::Response response = cpr::Get(cpr::Url{ (std::string("https://ru.tbc.wowhead.com/quest=") + std::to_string(8)) }, cpr::UserAgent{ "Mozilla / 5.0 (Windows NT 10.0; Win64; x64) AppleWebKit / 537.36 (KHTML, like Gecko) Chrome / 99.0.4844.51 Safari / 537.36" });
-    return response.text;
-}
-
-const char* search_for_title(GumboNode* node, GumboTag tag, const char* search_key, const char* search_value, bool ignoreFilter = false)
-{
-    if (node->type != GUMBO_NODE_ELEMENT)
-        return NULL;
-
-    const char* lt_token = NULL;
-    bool foundTag = false;
-
-    // Set the element's term key, 
-    // e.g. if we need to find something like <input name="foobar"> then element search term key is "name",
-    //      and element search value is "foobar"
-    GumboAttribute* lt_attr = gumbo_get_attribute(&node->v.element.attributes, search_key);
-
-    if (lt_attr && node->v.element.tag == tag && (strcmp(lt_attr->value, search_value) == 0))
-    {
-        GumboNode* title_text = static_cast<GumboNode*>(node->v.element.children.data[0]);
-        if (title_text)
-        {
-            if (lt_attr)
-                std::cout << "attibute value:" << lt_attr->value << "\n";
-            //std::cout << "attibute text:" << title_text->v.text.text << "\n";
-
-            GumboVector* children = &node->v.element.children;
-            std::cout << "element children:" << children->length << "\n \n";
-
-            for (unsigned int i = 0; i < children->length; ++i)
-            {
-                GumboNode* childNode = static_cast<GumboNode*>(children->data[i]);
-                if (childNode)
-                {
-                    if (childNode->v.element.tag == GUMBO_TAG_BR)
-                        std::cout << "\n";
-                    else
-                        std::cout << childNode->v.text.text;
-                }
-            }
-        }
-    }
-
-    GumboVector* children = &node->v.element.children;
-
-    for (unsigned int i = 0; i < children->length; ++i)
-    {
-        GumboNode* childNode = static_cast<GumboNode*>(children->data[i]);
-        lt_token = search_for_title(childNode, tag, search_key, search_value);
-
-        if (lt_token != NULL)
-        {
-            std::cout << "result text:" << lt_token << "\n";
-            return lt_token;
-        }
-    }
-    return NULL;
-}
-
-void cachePagesRange(std::string type, unsigned int min_id, unsigned int max_id, unsigned int locale = 0, unsigned int expansion = 0)
-{
-    msg_delay("> Cache: Loading %s pages \n", type.c_str());
+    msg_delay("> Cache: Loading %s pages \n", typeName(type).c_str());
     if (max_id > 0)
         msg_delay("> Cache: Entries: #%d - #%d \n", min_id, max_id);
     else
@@ -581,18 +543,18 @@ void cachePagesRange(std::string type, unsigned int min_id, unsigned int max_id,
                     break;
                 }
 
-                std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + type + "/";
+                std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(type) + "/";
                 std::string wh_page = readFromFile(cacheLocation + std::to_string(min_id) + ".txt");
                 if (!wh_page.empty())
-                    msg_delay("\n> " + type + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
+                    msg_delay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
                 else
                 {
-                    std::string page = loadPageOrCache(type, min_id, i, e, true);
+                    std::string page = loadPageOrCache(type, min_id, e, i, true);
                     if (!page.empty())
-                        msg_delay("\n> " + type + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i));
+                        msg_delay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i));
                     else
                     {
-                        msg_delay("\n> " + type + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + " (error)");
+                        msg_delay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + " (error)");
                         if (locale == 0 && i == 1)
                             noEnglishPage = true;
                     }
@@ -661,18 +623,18 @@ void cachePagesRange(std::string type, unsigned int min_id, unsigned int max_id,
                         break;
                     }
 
-                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + type + "/";
+                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(type) + "/";
                     std::string wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
                     if (!wh_page.empty())
-                        msg_delay("\n> " + type + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
+                        msg_delay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
                     else
                     {
-                        std::string page = loadPageOrCache(type, id, i, e, true);
+                        std::string page = loadPageOrCache(type, id, e, i, true);
                         if (!page.empty())
-                            msg_delay("\n> " + type + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i));
+                            msg_delay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i));
                         else
                         {
-                            msg_delay("\n> " + type + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + " (error)");
+                            msg_delay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + " (error)");
                             if (locale == 0 && i == 1)
                                 noEnglishPage = true;
                         }
@@ -716,11 +678,27 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                         }
                         else if (childNode->v.element.tag == GUMBO_TAG_A)
                         {
-                            GumboNode* link_node = static_cast<GumboNode*>(childNode->v.element.children.data[0]);
+                            // Bug - gives random huge children length if has <a> tag in middle
+                            GumboVector* childrenA = &childNode->v.element.children;
+                            if (childrenA->length > 10)
+                            {
+                                query_result << childNode->v.text.text;
+                                continue;
+                            }
+
+                            for (unsigned int e = 0; e < childrenA->length; ++e)
+                            {
+                                GumboNode* link_node = static_cast<GumboNode*>(childrenA->data[e]);
+                                if (link_node)
+                                {
+                                    query_result << link_node->v.text.text;
+                                }
+                            }
+                            /*GumboNode* link_node = static_cast<GumboNode*>(childNode->v.element.children.data[0]);
                             if (link_node)
                             {
                                 query_result << link_node->v.text.text;
-                            }
+                            }*/
                         }
                         else
                         {
@@ -729,7 +707,7 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                     }
                 }
             }
-            // search children (used for quest EndText (main objective) and quest ObjectiveText1-4. They don't exist together
+            // search children (used for quest EndText (main objective) and quest ObjectiveText1-4. They don't exist together)
             if (!between && searchChildren/* && title_text && (contents == NULL || (contents != NULL && strcmp(title_text->v.text.text, contents) == 0))*/)
             {
                 GumboVector* children = &node->v.element.children;
@@ -770,19 +748,37 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                                     GumboNode* colChild = static_cast<GumboNode*>(colChildren->data[c]);
                                                     if (colChild && colChild->v.element.tag == GUMBO_TAG_P)
                                                         return NULL;
+
+                                                    // filter Provided Item: <a class=q1>
+                                                    if (colChild && colChild->v.element.tag == GUMBO_TAG_A)
+                                                    {
+                                                        GumboAttribute* s_attr = gumbo_get_attribute(&colChild->v.element.attributes, "class");
+                                                        if (s_attr && (strcmp(s_attr->value, "q1") == 0))
+                                                            return NULL;
+                                                    }
                                                 }
 
                                                 if (rowChild && rowChild->v.element.tag == GUMBO_TAG_TH)
                                                 {
-                                                    GumboVector* colChildren = &rowChild->v.element.children;
+                                                    // filter Provided Item: <a class=q1>
+                                                    if (preTag == GUMBO_TAG_A)
+                                                    {
+                                                        GumboAttribute* s_attr = gumbo_get_attribute(&rowChild->v.element.attributes, "class");
+                                                        if (s_attr && (strcmp(s_attr->value, "icon-list-icon") == 0))
+                                                            return NULL;
+                                                    }
+
                                                     for (unsigned int c = 0; c < colChildren->length; ++c)
                                                     {
                                                         GumboNode* colChild = static_cast<GumboNode*>(colChildren->data[c]);
-                                                        if (colChild && colChild->v.element.tag == GUMBO_TAG_P)
+                                                        if (colChild)
                                                         {
-                                                            GumboAttribute* s_attr = gumbo_get_attribute(&colChild->v.element.attributes, "style");
-                                                            if (s_attr && (strcmp(s_attr->value, "height:26px") == 0))
-                                                                return NULL;
+                                                            if (colChild->v.element.tag == GUMBO_TAG_P)
+                                                            {
+                                                                GumboAttribute* s_attr = gumbo_get_attribute(&colChild->v.element.attributes, "style");
+                                                                if (s_attr && (strcmp(s_attr->value, "height:26px") == 0))
+                                                                    return NULL;
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -985,6 +981,13 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                 query_result << "\n";
                             else if (childNode->v.element.tag == GUMBO_TAG_A)
                             {
+                                // Bug - gives random huge children length if has <a> tag in middle
+                                GumboVector* childrenA = &childNode->v.element.children;
+                                if (childrenA->length > 10)
+                                {
+                                    query_result << childNode->v.text.text;
+                                    continue;
+                                }
                                 GumboNode* link_node = static_cast<GumboNode*>(childNode->v.element.children.data[0]);
                                 if (link_node)
                                 {
@@ -1010,10 +1013,9 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
     return NULL;
 }
 
-const char* parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int questPartID, unsigned int locale = 0)
+void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int questPartID, unsigned int locale = 0)
 {
     //const char* quest_details;
-
     GumboTag tag = GUMBO_TAG_UNKNOWN;
     GumboTag preTag = GUMBO_TAG_UNKNOWN;
     GumboNodeType preType = GUMBO_NODE_ELEMENT;
@@ -1034,11 +1036,21 @@ const char* parse_quest(std::ostringstream& query_result, GumboNode* node, unsig
 
     switch (questPartID)
     {
+    default:
     case 1: // Title
         attr_name = "class";
         attr_value = "heading-size-1";
         break;
-    case 2: // Details
+    case 2: // Objectives
+        attr_name = "class";
+        attr_value = "heading-size-1";
+        between = true;
+        attr_second_name = "class";
+        attr_second_value = "icon-list";
+        steps_back = 0;
+        preType = GUMBO_NODE_TEXT;
+        break;
+    case 3: // Details
         attr_name = "class";
         attr_value = "heading-size-3";
         between = true;
@@ -1048,15 +1060,6 @@ const char* parse_quest(std::ostringstream& query_result, GumboNode* node, unsig
         if (locale == 5)
             attr_second_value = "quest-reward-slider";
         steps_back = 1;
-        break;
-    case 3: // Objectives
-        attr_name = "class";
-        attr_value = "heading-size-1";
-        between = true;
-        attr_second_name = "class";
-        attr_second_value = "icon-list";
-        steps_back = 0;
-        preType = GUMBO_NODE_TEXT;
         break;
     case 4: // RequestItemsText
         attr_name = "id";
@@ -1087,10 +1090,51 @@ const char* parse_quest(std::ostringstream& query_result, GumboNode* node, unsig
         break;
     }
 
-    //search_for_title(node, tag, attr_name, attr_value);
     parse_details(query_result, node, tag, attr_name, attr_value, contents, between, attr_second_name, attr_second_value, attr_second_alt_value, steps_back, unique, hasChildren, preTag, preType, searchChildren, childIndex, fromEnd, ignoreContent);
+}
 
-    return NULL;
+std::string parse_quest(GumboNode* node, unsigned int questPartID, unsigned int locale = 1)
+{
+    std::ostringstream query_result;
+    parse_quest(query_result, node, questPartID, locale);
+    return query_result.str();
+}
+
+std::string ReadQuestText(GumboOutput* parsedPage, const std::string& questPart, uint32 locale)
+{
+    std::ostringstream questText;
+    uint32 questPartId = questTextId(questPart);
+    if (!questPartId)
+        return "";
+
+    return parse_quest(parsedPage->root, questPartId, locale);
+}
+
+GumboOutput* GumboParsePage(const std::string& page)
+{
+    return gumbo_parse(page.c_str());
+}
+
+void GumboClosePage(GumboOutput* output)
+{
+    gumbo_destroy_output(&kGumboDefaultOptions, output);
+}
+
+WowheadQuestInfo* LoadQuestCache(uint32 id, uint32 expansion = 0, uint32 locale = 0)
+{
+    if (!id)
+        return nullptr;
+
+    auto qInfo = new WowheadQuestInfo(id, expansion, locale);
+    qInfo->LoadCacheDataAll();
+    if (!qInfo->IsLoaded())
+    {
+        delete qInfo;
+        return nullptr;
+    }
+
+    questWowheadInfoList[id] = qInfo;
+    return qInfo;
 }
 
 const char* parse_npc(std::ostringstream& query_result, GumboNode* node, unsigned int npcPartId, unsigned int locale = 0)
@@ -1124,9 +1168,9 @@ const char* parse_npc(std::ostringstream& query_result, GumboNode* node, unsigne
         attr_name = "class";
         attr_value = "heading-size-1";
         break;
+        default: return nullptr;
     }
 
-    //search_for_title(node, tag, attr_name, attr_value);
     parse_details(query_result, node, tag, attr_name, attr_value, contents, between, attr_second_name, attr_second_value, attr_second_alt_value, steps_back, unique, hasChildren, preTag, preType, searchChildren, childIndex, fromEnd, ignoreContent);
 
     return NULL;
@@ -1161,8 +1205,8 @@ int main(int argc, char* argv[])
     std::ostringstream query_result;
 
     unsigned int activity = 1;
-    unsigned int locale = 1;
-    unsigned int expansion = 1;
+    unsigned int locale = 0;
+    unsigned int expansion = 0;
     unsigned int type = 0;
     unsigned int entry = 0;
     unsigned int entryPart = 0;
@@ -1176,15 +1220,32 @@ int main(int argc, char* argv[])
     {
         // Choose Activity
         std::cout << "Select option: \n";
-        std::cout << "1) Show page info \n";
-        std::cout << "2) Cache pages \n";
+        std::cout << "1) Test Page Info \n";
+        std::cout << "2) Cache Pages \n";
         std::cout << "3) Test DB connect \n";
+        std::cout << "4) Cache stats \n";
         std::cin >> activity;
 
         if (activity == 1) // run single page
         {
+            // Choose parse type
+            std::cout << "\nSelect parse type: \n";
+            std::cout << "1) Quest \n";
+            std::cout << "2) NPC \n";
+            std::cin >> type;
+
+            // Choose expansion
+            std::cout << "\nSelect Expansion: \n";
+            //std::cout << "0) All \n";
+            std::cout << "1) Classic \n";
+            std::cout << "2) TBC \n";
+            std::cout << "3) WotLK \n";
+            std::cout << "4) Retail \n";
+            std::cin >> expansion;
+
             // Choose locale
-            std::cout << "\nSelect Locale: (Default: English)\n";
+            std::cout << "\nSelect Locale: \n";
+            //std::cout << "0) All Locales \n";
             std::cout << "1) English (LOC 0) \n";
             std::cout << "2) Korean  (LOC 1) \n";
             std::cout << "3) French  (LOC 2) \n";
@@ -1193,19 +1254,6 @@ int main(int argc, char* argv[])
             std::cout << "6) Spanish (LOC 6 + 7) \n";
             std::cout << "7) Russian (LOC 8)\n";
             std::cin >> locale;
-
-            std::cout << "\nSelect Expansion: (Default: Classic) \n";
-            std::cout << "1) Classic \n";
-            std::cout << "2) TBC \n";
-            std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
-            std::cin >> expansion;
-
-            // Choose parse type
-            std::cout << "\nSelect parse type: \n";
-            std::cout << "1) Quest \n";
-            std::cout << "2) NPC \n";
-            std::cin >> type;
 
             // only quest is supported
             if (type == 0)
@@ -1224,18 +1272,19 @@ int main(int argc, char* argv[])
                 std::cin >> entry;
             }
 
-            if (type == 1) // quest
+            /*if (type == 1) // quest
             {
                 std::cout << "\nWhat part of quest do you need? \n";
                 std::cout << "1) Title           (Title) \n";
-                std::cerr << "2) Description     (Details) \n";
-                std::cerr << "3) Objectives      (Objectives) \n";
-                std::cerr << "4) Progress        (RequestItemsText) \n";
-                std::cerr << "5) Completion      (OfferRewardText) \n";
-                std::cerr << "6) Main Objective  (EndText) \n";
-                std::cerr << "7) List Objectives (ObjectiveText 1-4) \n";
+                std::cout << "2) Description     (Details) \n";
+                std::cout << "3) Objectives      (Objectives) \n";
+                std::cout << "4) Progress        (RequestItemsText) \n";
+                std::cout << "5) Completion      (OfferRewardText) \n";
+                std::cout << "6) Main Objective  (EndText) \n";
+                std::cout << "7) List Objectives (ObjectiveText 1-4) \n";
                 std::cin >> entryPart;
-            }
+            }*/
+
             if (type == 2) // npc
             {
                 std::cout << "\nWhat part of npc do you need? \n";
@@ -1243,11 +1292,11 @@ int main(int argc, char* argv[])
                 std::cin >> entryPart;
             }
 
-            if (entryPart == 0)
-            {
-                msg_delay("You must select entry part!\n\n");
-                std::cin >> entryPart;
-            }
+//            if (entryPart == 0)
+//            {
+//                msg_delay("You must select entry part!\n\n");
+//                std::cin >> entryPart;
+//            }
         }
         if (activity == 2) // cache multiple pages
         {
@@ -1265,7 +1314,7 @@ int main(int argc, char* argv[])
             }
 
             std::cout << "\nSelect Expansion: (Default: Classic) \n";
-            //std::cout << "0) All versions \n";
+            std::cout << "0) All versions \n";
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
@@ -1274,7 +1323,7 @@ int main(int argc, char* argv[])
 
             // Choose locale
             std::cout << "\nSelect Locale: (Default: English)\n";
-            //std::cout << "0) All locales \n";
+            std::cout << "0) All locales \n";
             std::cout << "1) English (LOC 0) \n";
             std::cout << "2) Korean  (LOC 1) \n";
             std::cout << "3) French  (LOC 2) \n";
@@ -1298,7 +1347,7 @@ int main(int argc, char* argv[])
             std::cout << "\nEnter Max ID: Default(None) \n";
             std::cin >> max_entry;
 
-            cachePagesRange(typeName(type), entry, max_entry, locale, expansion);
+            cachePagesRange(CacheType(type), entry, max_entry, locale, expansion);
             return 1;
         }
         if (activity == 3)
@@ -1307,9 +1356,231 @@ int main(int argc, char* argv[])
             loadFromDB();
             return 1;
         }
+        if (activity == 4)
+        {
+            msg_delay("> Cache: Collecting data...\n");
+            msg_delay("> Cache: Quests cached: \n");
+            for (auto e = 1; e < 4 + 1; ++e) // expansion
+            {
+                msg_delay("\n> %s \n", expansionName(e).c_str());
+                for (auto i = 1; i < 7 + 1; ++i) // locales
+                {
+                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
+                    if (!std::filesystem::is_directory(cacheLocation))
+                    {
+                        msg_delay(">  %s %d \n", localeName(i).c_str(), 0);
+                        continue;
+                    }
+
+                    auto counter = 0;
+                    auto dirIter = std::filesystem::directory_iterator(cacheLocation);
+                    for (auto& fl : dirIter)
+                    {
+                        if (fl.is_regular_file())
+                        {
+                            ++counter;
+                        }
+                    }
+                    msg_delay(">  %s %d \n", localeName(i).c_str(), counter);
+                }
+            }
+
+            unsigned int counter = 0;
+            std::map<unsigned int, std::string> englishEndText;
+            std::map<unsigned int, std::string> englishObjText;
+            std::map<unsigned int, std::string> englishReqText;
+            std::map<unsigned int, std::string> englishOfferText;
+            unsigned int limit = 10000;
+            msg_delay("\n");
+            for (auto e = 1; e < 4 + 1; ++e) // expansion
+            {
+                //if (counter > limit)
+                //    break;
+                msg_delay("> %s \n", expansionName(e).c_str());
+
+                for (auto i = 1; i < 7 + 1; ++i) // locales
+                {
+                    // test non eng
+                    //if (!(i == 1 || i == 7))
+                    //    continue;
+                    msg_delay("\n>  %s \n", localeName(i).c_str());
+
+                    unsigned int withClassTag = 0, withRaceTag = 0, hasEndText = 0, hasObjectives = 0, hasOfferText = 0, hasReqText = 0, hasBoth = 0;
+                    std::string endObj;
+                    unsigned int questBothId = 0;
+                    unsigned int hasEnglishEnd = 0;
+                    unsigned int hasEnglishObj = 0;
+                    unsigned int hasEnglishOffer = 0;
+                    unsigned int hasEnglishReq = 0;
+                    std::ostringstream missingEndText, missingObjText, missingReqText, missingOfferText;
+                    unsigned int missingEndTextNum = 0, missingObjTextNum = 0, missingReqTextNum = 0, missingOfferTextNum = 0;
+
+                    if (counter > limit)
+                    {
+                        counter = 0;
+                        continue;
+                    }
+
+                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
+                    if (!std::filesystem::is_directory(cacheLocation))
+                        continue;
+
+                    auto dirIter = std::filesystem::directory_iterator(cacheLocation);
+                    for (auto& fl : dirIter)
+                    {
+                        if (counter > limit)
+                        {
+                            counter = 0;
+                            break;
+                        }
+
+                        if (fl.is_regular_file())
+                        {
+                            std::string wh_page = readFromFile(fl.path().string());
+                            if (wh_page.empty())
+                                continue; // should not happen
+
+                            const std::filesystem::path& p(fl.path());
+                            GumboOutput* parsed_response = gumbo_parse(wh_page.c_str());
+                            std::string reqTextStr = parse_quest(parsed_response->root, 4, i);
+                            std::string offerTextStr = parse_quest(parsed_response->root, 5, i);
+                            std::string endTextStr = parse_quest(parsed_response->root, 6, i);
+                            std::string objectivesListStr = parse_quest(parsed_response->root, 7, i);
+                            if (i == 1)
+                            {
+                                if (!endTextStr.empty())
+                                    englishEndText[stoi(p.stem().string())] = endTextStr;
+                                if (!objectivesListStr.empty())
+                                    englishObjText[stoi(p.stem().string())] = objectivesListStr;
+                                if (!reqTextStr.empty())
+                                    englishReqText[stoi(p.stem().string())] = reqTextStr;
+                                if (!offerTextStr.empty())
+                                    englishOfferText[stoi(p.stem().string())] = offerTextStr;
+                            }
+                            else
+                            {
+                                auto testStr = englishEndText[stoi(p.stem().string())];
+                                if (!testStr.empty() && strcmp(testStr.c_str(), endTextStr.c_str()) == 0)
+                                {
+                                    hasEnglishEnd++;
+                                    msg_nodelay("\n   enEnd:" + p.stem().string() + ":");
+                                    msg_nodelay(testStr);
+                                }
+                                if (!testStr.empty() && endTextStr.empty())
+                                {
+                                    missingEndText << stoi(p.stem().string()) <<  ", ";
+                                    missingEndTextNum++;
+                                }
+
+                                auto testStr2 = englishObjText[stoi(p.stem().string())];
+                                if (!testStr2.empty() && strcmp(testStr2.c_str(), objectivesListStr.c_str()) == 0)
+                                {
+                                    hasEnglishObj++;
+                                    msg_nodelay("\n   enObj:" + p.stem().string() + ":");
+                                    msg_nodelay(testStr2);
+                                }
+                                if (!testStr2.empty() && objectivesListStr.empty())
+                                {
+                                    missingObjText << stoi(p.stem().string()) << ", ";
+                                    missingObjTextNum++;
+                                }
+
+                                auto testStr3 = englishReqText[stoi(p.stem().string())];
+                                if (!testStr3.empty() && strcmp(testStr3.c_str(), reqTextStr.c_str()) == 0)
+                                {
+                                    hasEnglishReq++;
+                                    msg_nodelay("\n   enReq:" + p.stem().string() + ":");
+                                    msg_nodelay(testStr3);
+                                }
+                                if (!testStr3.empty() && reqTextStr.empty())
+                                {
+                                    missingReqText << stoi(p.stem().string()) << ", ";
+                                    missingReqTextNum++;
+                                }
+
+                                auto testStr4 = englishOfferText[stoi(p.stem().string())];
+                                if (!testStr4.empty() && strcmp(testStr4.c_str(), offerTextStr.c_str()) == 0)
+                                {
+                                    hasEnglishOffer++;
+                                    msg_nodelay("\n   enOffer:" + p.stem().string() + ":");
+                                    msg_nodelay(testStr4);
+                                }
+                                if (!testStr4.empty() && offerTextStr.empty())
+                                {
+                                    missingOfferText << stoi(p.stem().string()) << ", ";
+                                    missingOfferTextNum++;
+                                }
+                            }
+                            bool endText = !endTextStr.empty();
+                            bool objectivesList = !objectivesListStr.empty();
+                            bool bothObj = endText && objectivesList;
+                            if (!reqTextStr.empty())
+                                hasReqText++;
+                            if (!offerTextStr.empty())
+                                hasOfferText++;
+                            if (endText)
+                                hasEndText++;
+                            if (objectivesList)
+                                hasObjectives++;
+                            if (bothObj)
+                            {
+                                hasBoth++;
+                                endObj = fl.path().string();
+                                msg_nodelay(endObj);
+                                //questBothId = fl.path().string()
+                            }
+
+                            counter++;
+                            gumbo_destroy_output(&kGumboDefaultOptions, parsed_response);
+                            //msg_nodelay("> %s %s: %d \n", expansionName(e).c_str(), localeName(i).c_str(), counter);
+                        }
+                    }
+
+                    msg_delay("\n");
+                    msg_delay(">   Has ReqText: %d \n", hasReqText);
+                    msg_delay(">   Has OfferText: %d \n", hasOfferText);
+                    msg_delay(">   Has EndText: %d \n", hasEndText);
+                    msg_delay(">   Has Objectives 1-4: %d \n", hasObjectives);
+                    if (hasBoth)
+                        msg_delay("> Has Both: %d \n", hasBoth);
+                    if (i != 1)
+                    {
+                        msg_delay(">   Has Eng ReqText: %d \n", hasEnglishReq);
+                        msg_delay(">   Has Eng OfferText: %d \n", hasEnglishOffer);
+                        msg_delay(">   Has Eng EndText: %d \n", hasEnglishEnd);
+                        msg_delay(">   Has Eng ObjText: %d \n", hasEnglishObj);
+                        if (!missingReqText.str().empty())
+                        {
+                            msg_delay(">   Missing ReqText: %d \n", missingReqTextNum);
+                            writeToFile(missingReqText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingReqText");
+                        }
+                        if (!missingOfferText.str().empty())
+                        {
+                            msg_delay(">   Missing OfferText: %d \n", missingOfferTextNum);
+                            writeToFile(missingOfferText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingOfferText");
+                        }
+                        if (!missingEndText.str().empty())
+                        {
+                            msg_delay(">   Missing EndText: %d \n", missingEndTextNum);
+                            writeToFile(missingEndText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingEndText");
+                        }
+                        if (!missingObjText.str().empty())
+                        {
+                            msg_delay(">   Missing ObjectivesText: %d \n", missingObjTextNum);
+                            writeToFile(missingObjText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingObjText");
+                        }
+                    }
+                    //msg_delay("\n");
+
+                }
+                msg_delay("\n");
+            }
+
+            return 1;
+        }
 
     }
-    else // command line
+    else // command line // TODO add missing functions
     {
         // locale
         locale = check_int_input(argv[1]);
@@ -1430,8 +1701,26 @@ int main(int argc, char* argv[])
         // QUEST
         if (type == 1)
         {
-            std::string wh_page = loadPageOrCache(typeName(1), entry, locale, expansion);
+            // load all locales, set current for quick access
+            WowheadQuestInfo* qInfo = LoadQuestCache(entry, expansion, locale);
+            if (!qInfo)
+            {
+                msg_delay("> " + typeName(1) + " #" + std::to_string(entry) + ": Not Found! (Not Found) \n");
+                return 0;
+            }
 
+            msg_delay("\n");
+            msg_delay(">  Title: " + qInfo->GetTitle() + "\n\n");
+            msg_delay(">  Objectives: " + qInfo->GetObjectives() + "\n\n");
+            msg_delay(">  Details: " + qInfo->GetDetails() + "\n\n");
+            msg_delay(">  ReqItemText: " + qInfo->GetRequestItemText() + "\n\n");
+            msg_delay(">  OfferRewardText: " + qInfo->GetOfferRewardText() + "\n\n");
+            msg_delay(">  EndText: " + qInfo->GetEndText() + "\n\n");
+            msg_delay(">  Objective 1: " + qInfo->GetObjective(0) + "\n");
+            msg_delay(">  Objective 2: " + qInfo->GetObjective(1) + "\n");
+            msg_delay(">  Objective 3: " + qInfo->GetObjective(2) + "\n");
+            msg_delay(">  Objective 4: " + qInfo->GetObjective(3) + "\n");
+/*
             if (!wh_page.empty())
             {
                 msg_delay("> quest #" + std::to_string(entry) + ": Parsing... \n");
@@ -1448,12 +1737,12 @@ int main(int argc, char* argv[])
                     msg_delay("> Result: '" + query_result.str() + "'");
                     msg_delay("\n\n> quest #" + std::to_string(entry) + ": Done!");
                 }
-            }
+            }*/
         }
         // NPC
         if (type == 2)
         {
-            std::string wh_page = loadPageOrCache(typeName(2), entry, locale, expansion);
+            std::string wh_page = loadPageOrCache(CACHE_NPC, entry, expansion, locale);
 
             if (!wh_page.empty())
             {
@@ -1481,4 +1770,126 @@ int main(int argc, char* argv[])
     std::cout << "\n\nFinished!\n";
 
     return 1;
+}
+
+QuestStrings LoadQuestCacheStrings(const std::string &whPage, uint32 locale)
+{
+    QuestStrings qStrings;
+
+    // parse page
+    auto parsedPage = GumboParsePage(whPage);
+
+    // parse details
+    qStrings.title = ReadQuestText(parsedPage, "title", locale);
+    qStrings.objectives = ReadQuestText(parsedPage, "objectives", locale);
+    qStrings.details = ReadQuestText(parsedPage, "details", locale);
+    qStrings.requestItemText = ReadQuestText(parsedPage, "requestItemText", locale);
+    qStrings.offerRewardText = ReadQuestText(parsedPage, "offerRewardText", locale);
+    qStrings.endText = ReadQuestText(parsedPage, "endText", locale);
+    // read list of objectives;
+    std::string objList = ReadQuestText(parsedPage, "objectiveList", locale);
+    if (!objList.empty())
+    {
+        std::stringstream ss;
+        ss << objList;
+        std::vector<std::string> result;
+
+        while( ss.good() )
+        {
+            std::string substr;
+            getline( ss, substr, ';' );
+            result.push_back( substr );
+        }
+        if (!result.empty())
+        {
+            for (auto i = 0; i < result.size(); i++)
+            {
+                qStrings.objectiveList[i] = result[i];
+            }
+        }
+    }
+
+    // clear memory
+    GumboClosePage(parsedPage);
+
+    return qStrings;
+}
+
+WowheadCacheEntry::WowheadCacheEntry(uint32 id, CacheType type, uint32 expansion, uint32 locale)
+{
+    entry = id;
+    cacheType = type;
+    curExpansion = expansion;
+    curLocale = locale;
+    isLoaded = false;
+}
+
+
+void WowheadQuestInfo::LoadCacheData(uint32 expansion, uint32 locale)
+{
+    std::string cachePage = loadPageOrCache(CACHE_QUEST, GetEntry(), expansion, locale, true);
+    if (cachePage.empty())
+        return;
+
+    questTexts[expansion][locale] = LoadQuestCacheStrings(cachePage, locale);
+    SetLoaded(true);
+}
+
+std::string WowheadQuestInfo::GetTitle(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].title;
+    else
+        return questTexts[expansion][locale].title;
+}
+
+std::string WowheadQuestInfo::GetObjectives(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].objectives;
+    else
+        return questTexts[expansion][locale].objectives;
+}
+
+std::string WowheadQuestInfo::GetDetails(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].details;
+    else
+        return questTexts[expansion][locale].details;
+}
+
+std::string WowheadQuestInfo::GetRequestItemText(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].requestItemText;
+    else
+        return questTexts[expansion][locale].requestItemText;
+}
+
+std::string WowheadQuestInfo::GetOfferRewardText(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].offerRewardText;
+    else
+        return questTexts[expansion][locale].offerRewardText;
+}
+
+std::string WowheadQuestInfo::GetEndText(uint32 expansion, uint32 locale)
+{
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].endText;
+    else
+        return questTexts[expansion][locale].endText;
+}
+
+std::string WowheadQuestInfo::GetObjective(uint32 index, uint32 expansion, uint32 locale)
+{
+    if (index < 0 || index > 3)
+        return "";
+
+    if (expansion == 0 || locale == 0)
+        return questTexts[GetCurExpansion()][GetCurLocale()].objectiveList[index];
+    else
+        return questTexts[expansion][locale].objectiveList[index];
 }
