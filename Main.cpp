@@ -1,6 +1,6 @@
 #include "Main.h"
 
-#define STRING_SIZE 50
+#define STRING_SIZE 100000
 #define NOT_FOUND_TEXT "database-detail-page-not-found-message"
 #define MSG_DELAY 100
 
@@ -15,6 +15,13 @@ unsigned int check_int_input(const char* arg)
     return x;
 }
 
+void msg_delay_set(const std::string& message, int delay)
+{
+    fprintf(stderr, "%s", message.c_str());
+    std::chrono::milliseconds duration(delay);
+    std::this_thread::sleep_for(duration);
+}
+
 void msg_delay(std::string message, ...)
 {
     va_list vl;
@@ -27,7 +34,6 @@ void msg_delay(std::string message, ...)
         if (cur)
             addStrategy(cur);
     } while (cur);*/
-
 
     vfprintf(stderr, message.c_str(), vl);
     va_end(vl);
@@ -152,16 +158,39 @@ std::string expansionName(unsigned int expId)
     return expansionPrefix;
 }
 
-std::string typeName(unsigned int typeId)
+std::string typeName(TypeId typeId)
 {
     switch (typeId)
     {
-    case 1:
+    case TYPE_QUEST:
         return "quest";
-    case 2:
+    case TYPE_NPC:
         return "npc";
     default:
         return "quest";
+    }
+}
+
+uint32 localeRealId(uint32 locale)
+{
+    switch (locale)
+    {
+        case 1:
+        default:
+            return 0;
+            break;
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+            return locale - 1;
+            break;
+        case 6:
+            return 6;
+            break;
+        case 7:
+            return 8;
+            break;
     }
 }
 
@@ -183,6 +212,480 @@ uint32 questTextId(const std::string& partName)
         return 7;
 
     return 0;
+}
+
+std::string questColumnName(const std::string& partName, uint32 locale = 1)
+{
+    if (partName == "title")
+        return locale == 1 ? "Title" : ("Title_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "objectives")
+        return locale == 1 ? "Objectives" : ("Objectives_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "details")
+        return locale == 1 ? "Details" : ("Details_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "requestItemText")
+        return locale == 1 ? "RequestItemsText" : ("RequestItemsText_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "offerRewardText")
+        return locale == 1 ? "OfferRewardText" : ("OfferRewardText_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "endText")
+        return locale == 1 ? "EndText" : ("EndText_loc" + std::to_string(localeRealId(locale)));
+
+    if (partName == "objectiveText1")
+        return locale == 1 ? "ObjectiveText1" : ("ObjectiveText1_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "objectiveText2")
+        return locale == 1 ? "ObjectiveText2" : ("ObjectiveText2_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "objectiveText3")
+        return locale == 1 ? "ObjectiveText3" : ("ObjectiveText3_loc" + std::to_string(localeRealId(locale)));
+    if (partName == "objectiveText4")
+        return locale == 1 ? "ObjectiveText4" : ("ObjectiveText4_loc" + std::to_string(localeRealId(locale)));
+
+    return "";
+}
+
+std::string questAllColumns(uint32 locale = 1)
+{
+    if (locale == 1)
+        return "Title, Objectives, Details, RequestItemsText, OfferRewardText, EndText, ObjectiveText1, objectiveText2, objectiveText3, ObjectiveText4";
+
+    return "Title_loc" + std::to_string(localeRealId(locale)) +
+    ", Objectives_loc" + std::to_string(localeRealId(locale)) +
+    ", Details_loc" + std::to_string(localeRealId(locale)) +
+    ", RequestItemsText_loc" + std::to_string(localeRealId(locale)) +
+    ", OfferRewardText_loc" + std::to_string(localeRealId(locale)) +
+    ", EndText_loc" + std::to_string(localeRealId(locale)) +
+    ", ObjectiveText1_loc" + std::to_string(localeRealId(locale)) +
+    ", ObjectiveText2_loc" + std::to_string(localeRealId(locale)) +
+    ", ObjectiveText3_loc" + std::to_string(localeRealId(locale)) +
+    ", ObjectiveText4_loc" + std::to_string(localeRealId(locale));
+}
+
+const char* dbName(uint32 expansion)
+{
+    const char* dbName = nullptr;
+    if (expansion == 1)
+        dbName = "classicmangos";
+    if (expansion == 2)
+        dbName = "tbcmangos";
+    if (expansion == 3)
+        dbName = "wotlkmangos";
+
+    return dbName;
+}
+
+const char* questColumnName(const std::string& partName)
+{
+    if (partName == "title")
+        return "Title";
+    if (partName == "objectives")
+        return "Objectives";
+    if (partName == "details")
+        return "Details";
+    if (partName == "requestItemText")
+        return "RequestItemsText";
+    if (partName == "offerRewardText")
+        return "OfferRewardText";
+    if (partName == "endText")
+        return "EndText";
+    if (partName == "objectiveList")
+        return "ObjectiveText";
+
+    return nullptr;
+}
+
+std::string updateQuestFromWhQuery(WowheadQuestInfo* whInfo, DatabaseQuestInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
+{
+    if (!whInfo || !dbInfo || !whInfo->IsLoaded(whInfo->GetCurExpansion(), whInfo->GetCurLocale()) || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
+        return "";
+
+    std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
+    std::string colName = questColumnName(partName, locale);
+    std::string whText = whInfo->GetQuestPart(partName, expansion, locale);
+    //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
+
+    char *tStr = new char[strlen(whText.c_str())*2+1];
+    mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, whText.c_str(), strlen(whText.c_str()));
+    std::string replaceString(tStr);
+    delete [] tStr;
+
+    std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE entry = '" + std::to_string(dbInfo->GetEntry()) + "';";
+    return command;
+}
+
+bool TestDbConnect()
+{
+    auto* mysql = new MYSQL;
+    mysql_init(mysql);
+    mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, "your_prog_name");
+    if (!mysql_real_connect(mysql, "127.0.0.1", "root", "123456", "classicmangos", 3310, NULL, 0)) {
+        fprintf(stderr, "Failed to connect to database: Error: %s\n",
+                mysql_error(mysql));
+
+        mysql_close(mysql);
+        return false;
+    }
+    mysql_close(mysql);
+    return true;
+}
+
+bool DatabaseConnect::RunStringStmt(const std::string &command, std::vector<std::string> &result, int32 numStrings, bool silent)
+{
+    MYSQL_STMT* stmt;
+    auto* bind = new MYSQL_BIND[numStrings];
+    //MYSQL_BIND    bind[arrSize];
+    MYSQL_RES* prepare_meta_result;
+    MYSQL_TIME    ts;
+    auto* length = new unsigned long [numStrings];
+    int           param_count, column_count, row_count;
+    //short         small_data;
+    //int           int_data;
+    std::map<uint32, char[STRING_SIZE]> str_data;
+    //char          str_data[STRING_SIZE];
+    bool* is_null = new bool[numStrings];
+    bool* error = new bool[numStrings];
+    //bool          is_null[arrSize];
+    //bool          error[arrSize];
+
+    /* Prepare a SELECT query to fetch data from test_table */
+    stmt = mysql_stmt_init(mysql);
+    if (!stmt)
+    {
+        fprintf(stderr, " mysql_stmt_init(), out of memory\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+    if (mysql_stmt_prepare(stmt, command.c_str(), strlen(command.c_str())))
+    {
+        fprintf(stderr, " mysql_stmt_prepare(), SELECT failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+    //fprintf(stdout, " prepare, SELECT successful\n");
+
+    /* Get the parameter count from the statement */
+    param_count = mysql_stmt_param_count(stmt);
+    //fprintf(stdout, " total parameters in SELECT: %d\n", param_count);
+
+    if (param_count != 0) /* validate parameter count */
+    {
+        fprintf(stderr, " invalid parameter count returned by MySQL\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Execute the SELECT query */
+    if (mysql_stmt_execute(stmt))
+    {
+        fprintf(stderr, " mysql_stmt_execute(), failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Fetch result set meta information */
+    prepare_meta_result = mysql_stmt_result_metadata(stmt);
+    if (!prepare_meta_result)
+    {
+        fprintf(stderr,
+                " mysql_stmt_result_metadata(), \
+           returned no meta information\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Get total columns in the query */
+    column_count = mysql_num_fields(prepare_meta_result);
+    //fprintf(stdout,
+    //        " total columns in SELECT statement: %d\n",
+    //        column_count);
+
+    if (column_count != numStrings) /* validate column count */
+    {
+        if (!silent) fprintf(stderr, " invalid column count returned by MySQL\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Bind the result buffers for all 4 columns before fetching them */
+
+    //memset(bind, 0, sizeof(bind));
+    for (auto i = 0; i < numStrings; ++i)
+    {
+        /* STRING COLUMN */
+        bind[i].buffer_type = MYSQL_TYPE_STRING;
+        bind[i].buffer = (char*)(str_data[i]);
+        bind[i].buffer_length = STRING_SIZE;
+        bind[i].is_null = &is_null[i];
+        bind[i].length = &length[i];
+        bind[i].error = &error[i];
+    }
+
+    /* Bind the result buffers */
+    if (mysql_stmt_bind_result(stmt, bind))
+    {
+        fprintf(stderr, " mysql_stmt_bind_result() failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Now buffer all results to client (optional step) */
+    if (mysql_stmt_store_result(stmt))
+    {
+        fprintf(stderr, " mysql_stmt_store_result() failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    /* Fetch all rows */
+    row_count = 0;
+    //fprintf(stdout, "Fetching results ...\n");
+    while (!mysql_stmt_fetch(stmt))
+    {
+        row_count++;
+        //fprintf(stdout, "  row %d\n", row_count);
+
+        for (auto i = 0; i < numStrings; ++i)
+        {
+            /* column 1 */
+            //fprintf(stdout, "   column1 (string)   : ");
+            if (!is_null[i])
+            {
+                //fprintf(stdout, " NULL\n");
+                result.emplace_back(str_data[i]);
+            }
+            else
+                result.emplace_back("");
+        }
+    }
+
+    /* Validate rows fetched */
+    //fprintf(stdout, " total rows fetched: %d\n", row_count);
+    if (row_count < 1)
+    {
+        if (!silent) fprintf(stderr, " MySQL failed to return all rows\n");
+    }
+
+    /* Free the prepared result metadata */
+    mysql_free_result(prepare_meta_result);
+
+    /* Close the statement */
+    if (mysql_stmt_close(stmt))
+    {
+        /* mysql_stmt_close() invalidates stmt, so call          */
+        /* mysql_error(mysql) rather than mysql_stmt_error(stmt) */
+        fprintf(stderr, " failed while closing the statement\n");
+        fprintf(stderr, " %s\n", mysql_error(mysql));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
+        return false;
+    }
+
+    delete[] bind; delete[] length; delete[] is_null; delete[] error;
+    return true;
+}
+
+bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &result, int32 numStrings)
+{
+    MYSQL_STMT* stmt;
+    auto* bind = new MYSQL_BIND[numStrings];
+    MYSQL_RES* prepare_meta_result;
+    MYSQL_TIME    ts;
+    auto* length = new unsigned long [numStrings];
+    int           param_count, column_count, row_count;
+    short         small_data;
+    int           int_data;
+    char          str_data[STRING_SIZE];
+    bool* is_null = new bool[numStrings];
+    bool* error = new bool[numStrings];
+
+    /* Prepare a SELECT query to fetch data from test_table */
+    stmt = mysql_stmt_init(mysql);
+    if (!stmt)
+    {
+        fprintf(stderr, " mysql_stmt_init(), out of memory\n");
+        return false;
+    }
+    if (mysql_stmt_prepare(stmt, command.c_str(), strlen(command.c_str())))
+    {
+        fprintf(stderr, " mysql_stmt_prepare(), SELECT failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        return false;
+    }
+    //fprintf(stdout, " prepare, SELECT successful\n");
+
+    /* Get the parameter count from the statement */
+    param_count = mysql_stmt_param_count(stmt);
+    //fprintf(stdout, " total parameters in SELECT: %d\n", param_count);
+
+    if (param_count != 0) /* validate parameter count */
+    {
+        fprintf(stderr, " invalid parameter count returned by MySQL\n");
+        return false;
+    }
+
+    /* Execute the SELECT query */
+    if (mysql_stmt_execute(stmt))
+    {
+        fprintf(stderr, " mysql_stmt_execute(), failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        return false;
+    }
+
+    /* Fetch result set meta information */
+    prepare_meta_result = mysql_stmt_result_metadata(stmt);
+    if (!prepare_meta_result)
+    {
+        fprintf(stderr,
+                " mysql_stmt_result_metadata(), \
+           returned no meta information\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        return false;
+    }
+
+    /* Get total columns in the query */
+    column_count = mysql_num_fields(prepare_meta_result);
+    //fprintf(stdout,
+    //        " total columns in SELECT statement: %d\n",
+    //        column_count);
+
+    if (column_count != numStrings) /* validate column count */
+    {
+        fprintf(stderr, " invalid column count returned by MySQL\n");
+        return false;
+    }
+
+    /* Bind the result buffers for all 4 columns before fetching them */
+
+    //memset(bind, 0, sizeof(bind));
+    for (auto i = 0; i < numStrings; ++i)
+    {
+        /* INTEGER COLUMN */
+        bind[i].buffer_type = MYSQL_TYPE_LONG;
+        bind[i].buffer = (char*)&int_data;
+        bind[i].is_null = &is_null[i];
+        bind[i].length = &length[i];
+        bind[i].error = &error[i];
+    }
+
+    /* Bind the result buffers */
+    if (mysql_stmt_bind_result(stmt, bind))
+    {
+        fprintf(stderr, " mysql_stmt_bind_result() failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        return false;
+    }
+
+    /* Now buffer all results to client (optional step) */
+    if (mysql_stmt_store_result(stmt))
+    {
+        fprintf(stderr, " mysql_stmt_store_result() failed\n");
+        fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        return false;
+    }
+
+    /* Fetch all rows */
+    row_count = 0;
+    //fprintf(stdout, "Fetching results ...\n");
+    while (!mysql_stmt_fetch(stmt))
+    {
+        row_count++;
+        //fprintf(stdout, "  row %d\n", row_count);
+
+        for (auto i = 0; i < numStrings; ++i)
+        {
+            /* column 1 */
+            //fprintf(stdout, "   column1 (string)   : ");
+            if (!is_null[i])
+            {
+                //fprintf(stdout, " NULL\n");
+                result.emplace_back(int_data);
+            }
+        }
+    }
+
+    /* Validate rows fetched */
+    //fprintf(stdout, " total rows fetched: %d\n", row_count);
+    if (row_count < 1)
+    {
+        fprintf(stderr, " MySQL failed to return all rows\n");
+    }
+
+    /* Free the prepared result metadata */
+    mysql_free_result(prepare_meta_result);
+
+
+    /* Close the statement */
+    if (mysql_stmt_close(stmt))
+    {
+        /* mysql_stmt_close() invalidates stmt, so call          */
+        /* mysql_error(mysql) rather than mysql_stmt_error(stmt) */
+        fprintf(stderr, " failed while closing the statement\n");
+        fprintf(stderr, " %s\n", mysql_error(mysql));
+        return false;
+    }
+
+    return true;
+}
+
+bool DatabaseConnect::GetDbString(const std::string& command, std::string& result, bool silent)
+{
+    std::vector<std::string> strVec;
+    RunStringStmt(command, strVec, 1, silent);
+    if (strVec.empty())
+        return false;
+
+    if (!strVec[0].empty()) {
+        result = strVec[0];
+        return true;
+    }
+    return false;
+}
+
+bool DatabaseConnect::GetDbStrings(const std::string& command, std::vector<std::string>& result, int numStrings, bool silent)
+{
+    std::vector<std::string> strVec;
+    RunStringStmt(command, strVec, numStrings, silent);
+    for (const auto& entry : strVec)
+    {
+        if (!entry.empty())
+        {
+            result = strVec;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool DatabaseConnect::GetDbInt(const std::string& command, int& result)
+{
+    std::vector<int> strVec;
+    RunIntStmt(command, strVec, 1);
+    if (strVec.empty())
+        return false;
+
+    result = strVec[0];
+    return true;
+}
+
+bool DatabaseConnect::IsEntryExistInDb(TypeId type, uint32 id)
+{
+    if (!IsConnected())
+    {
+        fprintf(stderr, "Failed to connect to database");
+        return false;
+    }
+    else
+    {
+        std::string command;
+        if (type == TYPE_QUEST)
+            command = "SELECT Title FROM quest_template WHERE entry = " + std::to_string(id);
+
+        std::string result;
+        return GetDbString(command, result, true);
+    }
+    return false;
 }
 
 std::string loadFromDB()
@@ -375,10 +878,9 @@ std::string loadFromDB()
 
         /* Validate rows fetched */
         fprintf(stdout, " total rows fetched: %d\n", row_count);
-        if (row_count != 1)
+        if (row_count < 1)
         {
             fprintf(stderr, " MySQL failed to return all rows\n");
-            exit(0);
         }
 
         /* Free the prepared result metadata */
@@ -398,7 +900,7 @@ std::string loadFromDB()
     return "";
 }
 
-std::string load_WH_page(CacheType type, unsigned int id, unsigned int& error_code, unsigned int locale = 0, unsigned int expansion = 0)
+std::string load_WH_page(TypeId type, unsigned int id, unsigned int& error_code, unsigned int locale = 0, unsigned int expansion = 0)
 {
     // select locale prefix
     std::string localePrefix;
@@ -447,7 +949,7 @@ bool isNotFound(const std::string& wh_page)
     return wh_page.find(NOT_FOUND_TEXT) != std::string::npos;
 }
 
-std::string loadPageOrCache(CacheType type, unsigned int id, unsigned int expansion, unsigned int locale, bool silent = false)
+std::string loadPageOrCache(TypeId type, unsigned int id, unsigned int expansion, unsigned int locale, bool silent = false)
 {
     std::string cacheLocation = "cache/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(type) + "/";
     if (!silent)
@@ -489,7 +991,7 @@ std::string loadPageOrCache(CacheType type, unsigned int id, unsigned int expans
     return wh_page;
 }
 
-void cachePagesRange(CacheType type, unsigned int min_id, unsigned int max_id, unsigned int locale = 0, unsigned int expansion = 0)
+void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsigned int locale = 0, unsigned int expansion = 0)
 {
     msg_delay("> Cache: Loading %s pages \n", typeName(type).c_str());
     if (max_id > 0)
@@ -673,7 +1175,9 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                     {
                         if (childNode->v.element.tag == GUMBO_TAG_BR)
                         {
+                            // TODO replace here or not
                             query_result << "\n";
+                            //query_result << "$B";
                             //std::cout << "\n";
                         }
                         else if (childNode->v.element.tag == GUMBO_TAG_A)
@@ -732,6 +1236,14 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                         trIndexes.push_back(f);
                                     else
                                     {
+                                        // hackfix - <a> link to NPC</a> slain
+                                        /*if (preTag == GUMBO_TAG_A)
+                                        {
+                                            std::string checkstr = tableChild->v.text.text;
+                                            if (checkstr.find("slain") != std::string::npos)
+                                                return NULL;
+                                        }*/
+
                                         GumboVector* rowChildren = &tableChild->v.element.children;
                                         for (unsigned int r = 0; r < rowChildren->length; ++r)
                                         {
@@ -742,6 +1254,11 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                                 if (rowChild->v.element.tag == GUMBO_TAG_P)
                                                     return NULL;
 
+                                                // hackfix - <a> link to NPC</a> slain
+                                                /*std::string checkstr = rowChild->v.text.text;
+                                                if (checkstr.find("</a> ") != std::string::npos)
+                                                    return NULL;*/
+
                                                 GumboVector* colChildren = &rowChild->v.element.children;
                                                 for (unsigned int c = 0; c < colChildren->length; ++c)
                                                 {
@@ -749,11 +1266,17 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                                     if (colChild && colChild->v.element.tag == GUMBO_TAG_P)
                                                         return NULL;
 
-                                                    // filter Provided Item: <a class=q1>
+                                                    // filter Provided Item: <a class=qX>
                                                     if (colChild && colChild->v.element.tag == GUMBO_TAG_A)
                                                     {
                                                         GumboAttribute* s_attr = gumbo_get_attribute(&colChild->v.element.attributes, "class");
-                                                        if (s_attr && (strcmp(s_attr->value, "q1") == 0))
+                                                        if (s_attr &&
+                                                                ((strcmp(s_attr->value, "q0") == 0) ||
+                                                                (strcmp(s_attr->value, "q1") == 0) ||
+                                                                (strcmp(s_attr->value, "q2") == 0) ||
+                                                                (strcmp(s_attr->value, "q3") == 0) ||
+                                                                (strcmp(s_attr->value, "q4") == 0) ||
+                                                                (strcmp(s_attr->value, "q5") == 0)))
                                                             return NULL;
                                                     }
                                                 }
@@ -977,8 +1500,8 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                         {
                             //if (preType != GUMBO_NODE_ELEMENT && childNode->type)
                             //std::cout << "\n Element found at pos " << i;
-                            if (childNode->v.element.tag == GUMBO_TAG_BR)
-                                query_result << "\n";
+                            if (childNode->v.element.tag == GUMBO_TAG_BR) // TODO replace here or not
+                                query_result << "\n"; //query_result << "$B";
                             else if (childNode->v.element.tag == GUMBO_TAG_A)
                             {
                                 // Bug - gives random huge children length if has <a> tag in middle
@@ -1110,6 +1633,42 @@ std::string ReadQuestText(GumboOutput* parsedPage, const std::string& questPart,
     return parse_quest(parsedPage->root, questPartId, locale);
 }
 
+std::string LoadQuestText(DatabaseConnect* dbCon, uint32 id, const std::string& questPart, uint32 locale)
+{
+    std::ostringstream command;
+    std::string questText;
+    std::string questCol = questColumnName(questPart, locale);
+    std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
+    command << "SELECT " << questCol <<  " FROM " << tableName << " WHERE entry =" << std::to_string(id);
+    dbCon->GetDbString(command.str(), questText, true);
+    return questText;
+}
+
+QuestStrings LoadQuestFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
+{
+    QuestStrings qStrings;
+    std::ostringstream command;
+    std::vector<std::string> questText;
+    std::string questColumns = questAllColumns(locale);
+    std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
+    command << "SELECT " << questColumns <<  " FROM " << tableName << " WHERE entry = " << std::to_string(id);
+    if (!dbCon->GetDbStrings(command.str(), questText, 10, true))
+        return qStrings;
+
+    qStrings.title = questText[0];
+    qStrings.objectives = questText[1];
+    qStrings.details = questText[2];
+    qStrings.requestItemText = questText[3];
+    qStrings.offerRewardText = questText[4];
+    qStrings.endText = questText[5];
+    qStrings.objectiveList[0] = questText[6];
+    qStrings.objectiveList[1] = questText[7];
+    qStrings.objectiveList[2] = questText[8];
+    qStrings.objectiveList[3] = questText[9];
+
+    return qStrings;
+}
+
 GumboOutput* GumboParsePage(const std::string& page)
 {
     return gumbo_parse(page.c_str());
@@ -1120,20 +1679,169 @@ void GumboClosePage(GumboOutput* output)
     gumbo_destroy_output(&kGumboDefaultOptions, output);
 }
 
-WowheadQuestInfo* LoadQuestCache(uint32 id, uint32 expansion = 0, uint32 locale = 0)
+WowheadQuestInfo* LoadWowheadQuestInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false)
 {
     if (!id)
         return nullptr;
 
-    auto qInfo = new WowheadQuestInfo(id, expansion, locale);
-    qInfo->LoadCacheDataAll();
-    if (!qInfo->IsLoaded())
+    // check if already saved
+    if (expansion && locale && sDataMgr.questWowheadInfoList[id])
     {
+        WowheadQuestInfo* savedInfo = sDataMgr.questWowheadInfoList[id];
+        if (savedInfo->IsLoaded(expansion, locale))
+        {
+            savedInfo->SetCurExpansion(expansion);
+            savedInfo->SetCurLocale(locale);
+            return savedInfo;
+        }
+        else
+        {
+            savedInfo->LoadEntryData(expansion, locale);
+            if (savedInfo->IsLoaded(expansion, locale))
+            {
+                savedInfo->SetCurExpansion(expansion);
+                savedInfo->SetCurLocale(locale);
+                return savedInfo;
+            }
+            else
+                return nullptr;
+        }
+    }
+
+    WowheadQuestInfo* qInfo = nullptr;
+    bool isLoaded = false;
+    if (sDataMgr.questDatabaseInfoList[id])
+    {
+        isLoaded = true;
+        qInfo = sDataMgr.questWowheadInfoList[id];
+    }
+    else
+        qInfo = new WowheadQuestInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+
+    if (onlyOneVersion && expansion && locale)
+        qInfo->LoadEntryData(expansion, locale);
+    else if (expansion && !locale)
+    {
+        for (auto i = 1; i <= MAX_LOCALE; ++i)
+            qInfo->LoadEntryData(expansion, i);
+    }
+    else if (!expansion && locale)
+    {
+        for (auto i = 1; i <= MAX_EXPANSION; ++i)
+            qInfo->LoadEntryData(i, locale);
+    }
+    else
+        qInfo->LoadEntryDataAllVersions();
+
+    // if not loaded english classic
+    if (!qInfo->IsLoaded(expansion ? expansion : 1, locale ? locale : 1))
+    {
+        bool silent = false;
+        if (!silent)
+        {
+            if (locale != 1)
+                msg_delay("> WH " + typeName(TYPE_QUEST) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Translation Not Found! \n");
+            else
+                msg_delay("> WH " + typeName(TYPE_QUEST) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Quest Not Found! \n");
+        }
+
+        // erase after checking above
+        if (!isLoaded)
+        {
+            delete qInfo;
+        }
+        //sDataMgr.questDatabaseInfoList[id] = nullptr;
+        return nullptr;
+    }
+
+    if (!isLoaded) sDataMgr.questWowheadInfoList[id] = qInfo;
+    return qInfo;
+}
+
+DatabaseQuestInfo* LoadDatabaseQuestInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false, bool silent = false)
+{
+    if (!id)
+        return nullptr;
+
+    bool allLocales = false;
+    if (!expansion && !locale)
+        allLocales = true;
+
+    //DatabaseQuestInfo* questInfo = nullptr;
+
+    // check if already saved
+    if (expansion && locale && sDataMgr.questDatabaseInfoList[id])
+    {
+        DatabaseQuestInfo* savedInfo = sDataMgr.questDatabaseInfoList[id];
+        if (savedInfo->IsLoaded(expansion, locale))
+        {
+            savedInfo->SetCurExpansion(expansion);
+            savedInfo->SetCurLocale(locale);
+            return savedInfo;
+        }
+        else
+        {
+            savedInfo->LoadEntryData(expansion, locale);
+            if (savedInfo->IsLoaded(expansion, locale))
+            {
+                savedInfo->SetCurExpansion(expansion);
+                savedInfo->SetCurLocale(locale);
+                return savedInfo;
+            }
+            else
+                return nullptr;
+        }
+    }
+
+    DatabaseQuestInfo* qInfo = nullptr;
+    bool isLoaded = false;
+    if (sDataMgr.questDatabaseInfoList[id])
+    {
+        isLoaded = true;
+        qInfo = sDataMgr.questDatabaseInfoList[id];
+    }
+    else
+        qInfo = new DatabaseQuestInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+    // set default expansion or english
+    //auto qInfo = new DatabaseQuestInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+    if (onlyOneVersion && expansion && locale)
+        qInfo->LoadEntryData(expansion, locale);
+    else if (expansion && !locale)
+    {
+        for (auto i = 1; i <= MAX_LOCALE; ++i)
+            qInfo->LoadEntryData(expansion, i);
+    }
+    else if (!expansion && locale)
+    {
+        for (auto i = 1; i <= MAX_EXPANSION; ++i)
+            qInfo->LoadEntryData(i, locale);
+    }
+    else
+        qInfo->LoadEntryDataAllVersions();
+
+    /*if (expansion)
+        qInfo->SetCurExpansion(expansion);
+    if (locale)
+        qInfo->SetCurLocale(locale);*/
+
+    if (!qInfo->IsLoaded(expansion ? expansion : 1, locale ? locale : 1))
+    {
+        if (!silent)
+        {
+            if (locale > 1)
+                msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Translation Not Found! \n");
+            else
+                msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Quest Not Found! \n");
+        }
+
+        // erase after checking above
+        //sDataMgr.questDatabaseInfoList.erase(id);
         delete qInfo;
         return nullptr;
     }
 
-    questWowheadInfoList[id] = qInfo;
+
+    if (!isLoaded) sDataMgr.questDatabaseInfoList[id] = qInfo;
     return qInfo;
 }
 
@@ -1215,6 +1923,9 @@ int main(int argc, char* argv[])
     if (argc > 1)
         isCommandLine = true;
 
+    msg_delay("> DB: Initialize connection...\n");
+    sDataMgr.Initialize();
+
 
     if (!isCommandLine) // no command line arguments
     {
@@ -1223,7 +1934,9 @@ int main(int argc, char* argv[])
         std::cout << "1) Test Page Info \n";
         std::cout << "2) Cache Pages \n";
         std::cout << "3) Test DB connect \n";
-        std::cout << "4) Cache stats \n";
+        std::cout << "4) Cache quest stats (Long Loading) \n";
+        std::cout << "5) DB quest stats \n";
+        std::cout << "6) Work on translations \n";
         std::cin >> activity;
 
         if (activity == 1) // run single page
@@ -1347,7 +2060,7 @@ int main(int argc, char* argv[])
             std::cout << "\nEnter Max ID: Default(None) \n";
             std::cin >> max_entry;
 
-            cachePagesRange(CacheType(type), entry, max_entry, locale, expansion);
+            cachePagesRange(TypeId(type), entry, max_entry, locale, expansion);
             return 1;
         }
         if (activity == 3)
@@ -1358,13 +2071,44 @@ int main(int argc, char* argv[])
         }
         if (activity == 4)
         {
-            msg_delay("> Cache: Collecting data...\n");
-            msg_delay("> Cache: Quests cached: \n");
-            for (auto e = 1; e < 4 + 1; ++e) // expansion
+            std::cout << "\nSelect Expansion: (Default: Classic) \n";
+            std::cout << "0) All versions \n";
+            std::cout << "1) Classic \n";
+            std::cout << "2) TBC \n";
+            std::cout << "3) WotLK \n";
+            std::cout << "4) Retail \n";
+            std::cin >> expansion;
+
+            // Choose locale
+            std::cout << "\nSelect Locale: \n";
+            std::cout << "0) All locales \n";
+            std::cout << "2) Korean  (LOC 1) \n";
+            std::cout << "3) French  (LOC 2) \n";
+            std::cout << "4) German  (LOC 3) \n";
+            std::cout << "5) Chinese (LOC 4 + 5) \n";
+            std::cout << "6) Spanish (LOC 6 + 7) \n";
+            std::cout << "7) Russian (LOC 8)\n";
+            std::cin >> locale;
+
+            msg_delay("\n");
+            msg_delay("> WH: Collecting data...\n");
+
+            int maxQuestId[MAX_EXPANSION];
+            maxQuestId[0] = 0;
+            maxQuestId[1] = 0;
+            maxQuestId[2] = 0;
+
+            for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
             {
+                if (expansion && expansion != e)
+                    continue;
+
                 msg_delay("\n> %s \n", expansionName(e).c_str());
-                for (auto i = 1; i < 7 + 1; ++i) // locales
+                for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
                 {
+                    if (locale && locale != i && i != 1)
+                        continue;
+
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
                     if (!std::filesystem::is_directory(cacheLocation))
                     {
@@ -1379,47 +2123,67 @@ int main(int argc, char* argv[])
                         if (fl.is_regular_file())
                         {
                             ++counter;
+                            const std::filesystem::path& p(fl.path());
+                            uint32 qID = stoi(p.stem().string());
+                            if ((int)qID > maxQuestId[e - 1])
+                                maxQuestId[e - 1] = (int)qID;
                         }
                     }
-                    msg_delay(">  %s %d \n", localeName(i).c_str(), counter);
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(i).c_str(), counter, maxQuestId[e - 1]);
                 }
             }
 
-            unsigned int counter = 0;
-            std::map<unsigned int, std::string> englishEndText;
-            std::map<unsigned int, std::string> englishObjText;
-            std::map<unsigned int, std::string> englishReqText;
-            std::map<unsigned int, std::string> englishOfferText;
-            unsigned int limit = 10000;
+            uint32 counter = 0;
+            std::map<uint32, std::string> englishEndText;
+            std::map<uint32, std::string> englishObjText;
+            std::map<uint32, std::string> englishReqText;
+            std::map<uint32, std::string> englishOfferText;
+            //unsigned int limit = 10000;
             msg_delay("\n");
-            for (auto e = 1; e < 4 + 1; ++e) // expansion
+
+            msg_delay("> WH: Analyzing data... \n\n");
+
+            for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
             {
+                if (expansion && expansion != e)
+                    continue;
+
                 //if (counter > limit)
                 //    break;
                 msg_delay("> %s \n", expansionName(e).c_str());
+                msg_delay("> WH: Loading all quests... \n");
 
-                for (auto i = 1; i < 7 + 1; ++i) // locales
+                for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
                 {
+                    if (locale && locale != i && i != 1)
+                        continue;
+
                     // test non eng
                     //if (!(i == 1 || i == 7))
                     //    continue;
+                    counter = 0;
                     msg_delay("\n>  %s \n", localeName(i).c_str());
 
-                    unsigned int withClassTag = 0, withRaceTag = 0, hasEndText = 0, hasObjectives = 0, hasOfferText = 0, hasReqText = 0, hasBoth = 0;
-                    std::string endObj;
-                    unsigned int questBothId = 0;
-                    unsigned int hasEnglishEnd = 0;
-                    unsigned int hasEnglishObj = 0;
-                    unsigned int hasEnglishOffer = 0;
-                    unsigned int hasEnglishReq = 0;
-                    std::ostringstream missingEndText, missingObjText, missingReqText, missingOfferText;
-                    unsigned int missingEndTextNum = 0, missingObjTextNum = 0, missingReqTextNum = 0, missingOfferTextNum = 0;
+                    uint32 missingEndText = 0;
+                    uint32 missingObjText = 0;
+                    uint32 missingReqText = 0;
+                    uint32 missingOfferText = 0;
+                    uint32 missingDetails = 0;
+                    uint32 missingObjective1 = 0;
+                    uint32 missingObjective2 = 0;
+                    uint32 missingObjective3 = 0;
+                    uint32 missingObjective4 = 0;
 
-                    if (counter > limit)
-                    {
-                        counter = 0;
-                        continue;
-                    }
+                    // has english text
+                    uint32 hasEngEndText = 0;
+                    uint32 hasEngObjText = 0;
+                    uint32 hasEngReqText = 0;
+                    uint32 hasEngOfferText = 0;
+                    uint32 hasEngDetails = 0;
+                    uint32 hasEngObjective1 = 0;
+                    uint32 hasEngObjective2 = 0;
+                    uint32 hasEngObjective3 = 0;
+                    uint32 hasEngObjective4 = 0;
 
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
                     if (!std::filesystem::is_directory(cacheLocation))
@@ -1428,155 +2192,673 @@ int main(int argc, char* argv[])
                     auto dirIter = std::filesystem::directory_iterator(cacheLocation);
                     for (auto& fl : dirIter)
                     {
-                        if (counter > limit)
-                        {
-                            counter = 0;
-                            break;
-                        }
-
                         if (fl.is_regular_file())
                         {
-                            std::string wh_page = readFromFile(fl.path().string());
-                            if (wh_page.empty())
-                                continue; // should not happen
-
                             const std::filesystem::path& p(fl.path());
-                            GumboOutput* parsed_response = gumbo_parse(wh_page.c_str());
-                            std::string reqTextStr = parse_quest(parsed_response->root, 4, i);
-                            std::string offerTextStr = parse_quest(parsed_response->root, 5, i);
-                            std::string endTextStr = parse_quest(parsed_response->root, 6, i);
-                            std::string objectivesListStr = parse_quest(parsed_response->root, 7, i);
-                            if (i == 1)
+                            uint32 qID = stoi(p.stem().string());
+                            //msg_nodelay("> WH: trying q %d \n", qID);
+
+                            WowheadQuestInfo* qWhInfo = LoadWowheadQuestInfo(qID, e, i, true);
+                            if (!qWhInfo)
                             {
-                                if (!endTextStr.empty())
-                                    englishEndText[stoi(p.stem().string())] = endTextStr;
-                                if (!objectivesListStr.empty())
-                                    englishObjText[stoi(p.stem().string())] = objectivesListStr;
-                                if (!reqTextStr.empty())
-                                    englishReqText[stoi(p.stem().string())] = reqTextStr;
-                                if (!offerTextStr.empty())
-                                    englishOfferText[stoi(p.stem().string())] = offerTextStr;
+                                //msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                                continue;
                             }
                             else
                             {
-                                auto testStr = englishEndText[stoi(p.stem().string())];
-                                if (!testStr.empty() && strcmp(testStr.c_str(), endTextStr.c_str()) == 0)
-                                {
-                                    hasEnglishEnd++;
-                                    msg_nodelay("\n   enEnd:" + p.stem().string() + ":");
-                                    msg_nodelay(testStr);
-                                }
-                                if (!testStr.empty() && endTextStr.empty())
-                                {
-                                    missingEndText << stoi(p.stem().string()) <<  ", ";
-                                    missingEndTextNum++;
-                                }
+                                counter++;
+                                //msg_nodelay(".");// msg_delay_set(".", 50);
+                                if ((counter % 1000) == 0)
+                                    msg_nodelay(std::to_string(counter));
+                                else if ((counter % 100) == 0)
+                                    msg_nodelay(".");
 
-                                auto testStr2 = englishObjText[stoi(p.stem().string())];
-                                if (!testStr2.empty() && strcmp(testStr2.c_str(), objectivesListStr.c_str()) == 0)
-                                {
-                                    hasEnglishObj++;
-                                    msg_nodelay("\n   enObj:" + p.stem().string() + ":");
-                                    msg_nodelay(testStr2);
-                                }
-                                if (!testStr2.empty() && objectivesListStr.empty())
-                                {
-                                    missingObjText << stoi(p.stem().string()) << ", ";
-                                    missingObjTextNum++;
-                                }
-
-                                auto testStr3 = englishReqText[stoi(p.stem().string())];
-                                if (!testStr3.empty() && strcmp(testStr3.c_str(), reqTextStr.c_str()) == 0)
-                                {
-                                    hasEnglishReq++;
-                                    msg_nodelay("\n   enReq:" + p.stem().string() + ":");
-                                    msg_nodelay(testStr3);
-                                }
-                                if (!testStr3.empty() && reqTextStr.empty())
-                                {
-                                    missingReqText << stoi(p.stem().string()) << ", ";
-                                    missingReqTextNum++;
-                                }
-
-                                auto testStr4 = englishOfferText[stoi(p.stem().string())];
-                                if (!testStr4.empty() && strcmp(testStr4.c_str(), offerTextStr.c_str()) == 0)
-                                {
-                                    hasEnglishOffer++;
-                                    msg_nodelay("\n   enOffer:" + p.stem().string() + ":");
-                                    msg_nodelay(testStr4);
-                                }
-                                if (!testStr4.empty() && offerTextStr.empty())
-                                {
-                                    missingOfferText << stoi(p.stem().string()) << ", ";
-                                    missingOfferTextNum++;
-                                }
+                                //if ((counter % 1000) == 0)
+                                //    msg_nodelay("\n");
                             }
-                            bool endText = !endTextStr.empty();
-                            bool objectivesList = !objectivesListStr.empty();
-                            bool bothObj = endText && objectivesList;
-                            if (!reqTextStr.empty())
-                                hasReqText++;
-                            if (!offerTextStr.empty())
-                                hasOfferText++;
-                            if (endText)
-                                hasEndText++;
-                            if (objectivesList)
-                                hasObjectives++;
-                            if (bothObj)
-                            {
-                                hasBoth++;
-                                endObj = fl.path().string();
-                                msg_nodelay(endObj);
-                                //questBothId = fl.path().string()
-                            }
-
-                            counter++;
-                            gumbo_destroy_output(&kGumboDefaultOptions, parsed_response);
-                            //msg_nodelay("> %s %s: %d \n", expansionName(e).c_str(), localeName(i).c_str(), counter);
                         }
                     }
 
-                    msg_delay("\n");
-                    msg_delay(">   Has ReqText: %d \n", hasReqText);
-                    msg_delay(">   Has OfferText: %d \n", hasOfferText);
-                    msg_delay(">   Has EndText: %d \n", hasEndText);
-                    msg_delay(">   Has Objectives 1-4: %d \n", hasObjectives);
-                    if (hasBoth)
-                        msg_delay("> Has Both: %d \n", hasBoth);
-                    if (i != 1)
+                    msg_delay(">  loaded: %d %s quests \n", counter, localeName(i).c_str());
+
+                    // do not check english here
+                    if (i == 1)
+                        continue;
+
+                    msg_delay("> WH: Checking missing data... \n");
+
+                    bool hasLocales = false;
+                    counter = 0;
+                    for (const auto& questInfo : sDataMgr.questWowheadInfoList)
                     {
-                        msg_delay(">   Has Eng ReqText: %d \n", hasEnglishReq);
-                        msg_delay(">   Has Eng OfferText: %d \n", hasEnglishOffer);
-                        msg_delay(">   Has Eng EndText: %d \n", hasEnglishEnd);
-                        msg_delay(">   Has Eng ObjText: %d \n", hasEnglishObj);
-                        if (!missingReqText.str().empty())
-                        {
-                            msg_delay(">   Missing ReqText: %d \n", missingReqTextNum);
-                            writeToFile(missingReqText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingReqText");
-                        }
-                        if (!missingOfferText.str().empty())
-                        {
-                            msg_delay(">   Missing OfferText: %d \n", missingOfferTextNum);
-                            writeToFile(missingOfferText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingOfferText");
-                        }
-                        if (!missingEndText.str().empty())
-                        {
-                            msg_delay(">   Missing EndText: %d \n", missingEndTextNum);
-                            writeToFile(missingEndText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingEndText");
-                        }
-                        if (!missingObjText.str().empty())
-                        {
-                            msg_delay(">   Missing ObjectivesText: %d \n", missingObjTextNum);
-                            writeToFile(missingObjText.str().c_str(), expansionName(e) + "-" + localeName(i) + "-missingObjText");
-                        }
-                    }
-                    //msg_delay("\n");
+                        WowheadQuestInfo* qWhInfo = questInfo.second;
+                        if (!qWhInfo)
+                            continue;
 
+                        // skip if locale is missing
+                        if (qWhInfo->GetTitle(e, i).empty() && qWhInfo->GetDetails(e, i).empty())
+                            continue;
+
+                        hasLocales = true;
+                        counter++;
+
+                        // default english, set cur locale to current checked locale
+                        qWhInfo->SetCurExpansion(e);
+                        qWhInfo->SetCurLocale(i);
+
+                        if ((counter % 1000) == 0)
+                            msg_delay_set(std::to_string(counter), 10);
+                        else if ((counter % 100) == 0)
+                            msg_delay_set(".", 10);
+
+                        //if ((counter % 1000) == 0)
+                        //    msg_nodelay("\n");
+
+                        //msg_nodelay(".");
+
+                        // check if missing texts
+                        if (!qWhInfo->GetEndText(e, 1).empty() && qWhInfo->GetEndText().empty())
+                            missingEndText++;
+                        if (!qWhInfo->GetEndText(e, 1).empty() && !qWhInfo->GetEndText().empty() && strcmp(qWhInfo->GetEndText(e, 1).c_str(), qWhInfo->GetEndText().c_str()) == 0)
+                            hasEngEndText++;
+
+                        if (!qWhInfo->GetObjectives(e, 1).empty() && qWhInfo->GetObjectives().empty())
+                            missingObjText++;
+                        if (!qWhInfo->GetObjectives(e, 1).empty() && !qWhInfo->GetObjectives().empty() && strcmp(qWhInfo->GetObjectives(e, 1).c_str(), qWhInfo->GetObjectives().c_str()) == 0)
+                            hasEngObjText++;
+
+                        if (!qWhInfo->GetRequestItemText(e, 1).empty() && qWhInfo->GetRequestItemText().empty())
+                            missingReqText++;
+                        if (!qWhInfo->GetRequestItemText(e, 1).empty() && !qWhInfo->GetRequestItemText().empty() && strcmp(qWhInfo->GetRequestItemText(e, 1).c_str(), qWhInfo->GetRequestItemText().c_str()) == 0)
+                            hasEngReqText++;
+
+                        if (!qWhInfo->GetOfferRewardText(e, 1).empty() && qWhInfo->GetOfferRewardText().empty())
+                            missingOfferText++;
+                        if (!qWhInfo->GetOfferRewardText(e, 1).empty() && !qWhInfo->GetOfferRewardText().empty() && strcmp(qWhInfo->GetOfferRewardText(e, 1).c_str(), qWhInfo->GetOfferRewardText().c_str()) == 0)
+                            hasEngOfferText++;
+
+                        if (!qWhInfo->GetDetails(e, 1).empty() && qWhInfo->GetDetails().empty())
+                            missingDetails++;
+                        if (!qWhInfo->GetDetails(e, 1).empty() && !qWhInfo->GetDetails().empty() && strcmp(qWhInfo->GetDetails(e, 1).c_str(), qWhInfo->GetDetails().c_str()) == 0)
+                            hasEngDetails++;
+
+                        // Objective 1-4
+                        if (!qWhInfo->GetObjective(0, e, 1).empty() && qWhInfo->GetObjective(0).empty())
+                            missingObjective1++;
+                        if (!qWhInfo->GetObjective(0, e, 1).empty() && !qWhInfo->GetObjective(0).empty() && strcmp(qWhInfo->GetObjective(0, e, 1).c_str(), qWhInfo->GetObjective(0).c_str()) == 0)
+                            hasEngObjective1++;
+
+                        if (!qWhInfo->GetObjective(1, e, 1).empty() && qWhInfo->GetObjective(1).empty())
+                            missingObjective2++;
+                        if (!qWhInfo->GetObjective(1, e, 1).empty() && !qWhInfo->GetObjective(1).empty() && strcmp(qWhInfo->GetObjective(1, e, 1).c_str(), qWhInfo->GetObjective(1).c_str()) == 0)
+                            hasEngObjective2++;
+
+                        if (!qWhInfo->GetObjective(2, e, 1).empty() && qWhInfo->GetObjective(2).empty())
+                            missingObjective3++;
+                        if (!qWhInfo->GetObjective(2, e, 1).empty() && !qWhInfo->GetObjective(2).empty() && strcmp(qWhInfo->GetObjective(2, e, 1).c_str(), qWhInfo->GetObjective(2).c_str()) == 0)
+                            hasEngObjective3++;
+
+                        if (!qWhInfo->GetObjective(3, e, 1).empty() && qWhInfo->GetObjective(3).empty())
+                            missingObjective4++;
+                        if (!qWhInfo->GetObjective(3, e, 1).empty() && !qWhInfo->GetObjective(3).empty() && strcmp(qWhInfo->GetObjective(3, e, 1).c_str(), qWhInfo->GetObjective(3).c_str()) == 0)
+                            hasEngObjective4++;
+                        /*for (auto index = 0; index < 4; ++index)
+                        {
+                            if (!qDbInfo->GetObjective(index, e, 1).empty() && qDbInfo->GetObjective(index).empty())
+                                missingObjective[0][index]++;
+                        }*/
+                    }
+
+                    if (hasLocales)
+                    {
+                        msg_delay("\n");
+                        msg_delay(">   Missing Objectives: %d \n", missingObjText);
+                        msg_delay(">   Missing Details: %d \n", missingDetails);
+                        msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
+                        msg_delay(">   Missing OfferRewardText: %d \n", missingOfferText);
+                        msg_delay(">   Missing EndText: %d \n", missingEndText);
+                        msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
+
+                        if (hasEngObjText)
+                            msg_delay(">   English Objectives: %d \n", hasEngObjText);
+                        if (hasEngDetails)
+                            msg_delay(">   English Details: %d \n", hasEngDetails);
+                        if (hasEngReqText)
+                            msg_delay(">   English RequestItemText: %d \n", hasEngReqText);
+                        if (hasEngOfferText)
+                            msg_delay(">   English OfferRewardText: %d \n", hasEngOfferText);
+                        if (hasEngEndText)
+                            msg_delay(">   English EndText: %d \n", hasEngEndText);
+                    }
                 }
                 msg_delay("\n");
             }
 
             return 1;
+        }
+        if (activity == 5)
+        {
+            std::cout << "\nSelect Expansion: (Default: Classic) \n";
+            std::cout << "0) All versions \n";
+            std::cout << "1) Classic \n";
+            std::cout << "2) TBC \n";
+            std::cout << "3) WotLK \n";
+            std::cout << "4) Retail \n";
+            std::cin >> expansion;
+
+            // Choose locale
+            std::cout << "\nSelect Locale: \n";
+            std::cout << "0) All locales \n";
+            std::cout << "2) Korean  (LOC 1) \n";
+            std::cout << "3) French  (LOC 2) \n";
+            std::cout << "4) German  (LOC 3) \n";
+            std::cout << "5) Chinese (LOC 4 + 5) \n";
+            std::cout << "6) Spanish (LOC 6 + 7) \n";
+            std::cout << "7) Russian (LOC 8)\n";
+            std::cin >> locale;
+
+            msg_delay("\n");
+            msg_delay("> DB: Collecting data...\n");
+            //msg_delay("> DB: Quests total: \n");
+
+            int maxQuestId[MAX_EXPANSION];
+            maxQuestId[0] = 0;
+            maxQuestId[1] = 0;
+            maxQuestId[2] = 0;
+
+            for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+            {
+                if (expansion && expansion != e)
+                    continue;
+
+                msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                auto DbConnect = sDataMgr.GetCon(e);
+                if (!DbConnect || !DbConnect->IsConnected())
+                {
+                    msg_delay("> DB: Failed to connect! \n");
+                    //delete DbConnect;
+                    return 0;
+                }
+
+                int counter = 0;
+                DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", counter);
+                DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                msg_delay("> total: %d \n", counter);
+                msg_delay("> max id: %d \n", maxQuestId[e - 1]);
+
+                msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+
+                for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                {
+                    if (locale && locale != i)
+                        continue;
+
+                    int trCount = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                    msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                    if (locale && trCount == 0)
+                    {
+                        msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
+                        return 0;
+                    }
+                }
+
+                //delete DbConnect;
+            }
+
+            msg_delay("> DB: Analyzing data... \n");
+
+            for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+            {
+                if (expansion && expansion != e)
+                    continue;
+
+                msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                msg_delay("> DB: Loading all quests... \n");
+
+                uint32 counter = 0;
+                for (auto d = 1; d <= maxQuestId[e - 1]; ++d)
+                {
+                    DatabaseQuestInfo* qDbInfo = nullptr;
+                    if (locale) // load english and locale
+                    {
+                        qDbInfo = LoadDatabaseQuestInfo(d, e, 1, true, true);
+                        if (qDbInfo)
+                            qDbInfo = LoadDatabaseQuestInfo(d, e, locale, true, true);
+                    }
+                    else // load all locales
+                        qDbInfo = LoadDatabaseQuestInfo(d, e, 0, false, true);
+
+                    if (!qDbInfo)
+                    {
+                        //msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                        continue;
+                    }
+                    else
+                    {
+                        counter++;
+                        //msg_nodelay(".");// msg_delay_set(".", 50);
+                        if ((counter % 1000) == 0)
+                            msg_nodelay(std::to_string(counter));
+                        else if ((counter % 100) == 0)
+                            msg_nodelay(".");
+
+                        //if ((counter % 1000) == 0)
+                        //    msg_nodelay("\n");
+                    }
+                }
+
+                msg_delay(">  loaded: %d quests \n", counter);
+
+                msg_delay("> DB: Checking missing data... \n");
+                for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                {
+                    if (locale && locale != i)
+                        continue;
+
+                    uint32 missingEndText = 0;
+                    uint32 missingObjText = 0;
+                    uint32 missingReqText = 0;
+                    uint32 missingOfferText = 0;
+                    uint32 missingDetails = 0;
+                    uint32 missingObjective1 = 0;
+                    uint32 missingObjective2 = 0;
+                    uint32 missingObjective3 = 0;
+                    uint32 missingObjective4 = 0;
+
+                    // has english text
+                    uint32 hasEngEndText = 0;
+                    uint32 hasEngObjText = 0;
+                    uint32 hasEngReqText = 0;
+                    uint32 hasEngOfferText = 0;
+                    uint32 hasEngDetails = 0;
+                    uint32 hasEngObjective1 = 0;
+                    uint32 hasEngObjective2 = 0;
+                    uint32 hasEngObjective3 = 0;
+                    uint32 hasEngObjective4 = 0;
+
+                    /*uint32  missingEndText[2],
+                            missingObjText[2],
+                            missingReqText[2],
+                            missingOfferText[2],
+                            missingRaceTag[2],
+                            missingClassTag[2],
+                            missingDetails[2],
+                            missingObjective[2][4];
+
+                    for (auto d = 0; d < 4; ++d)
+                    {
+                        missingEndText[d] = 0;
+                        missingObjText[d] = 0;
+                        missingReqText[d] = 0;
+                        missingOfferText[d] = 0;
+                        missingDetails[d] = 0;
+                        missingRaceTag[d] = 0;
+                        missingClassTag[d] = 0;
+                        *//*missingObjective[d][0] = 0;
+                        missingObjective[d][1] = 0;
+                        missingObjective[d][2] = 0;
+                        missingObjective[d][3] = 0;*//*
+                        *//*for (auto obj = 0; obj < 4; ++obj)
+                        {
+                            missingObjective[d][obj] = 0;
+                        }*//*
+                    }*/
+                    bool hasLocales = false;
+                    msg_delay("\n>  %s \n", localeName(i).c_str());
+                    counter = 0;
+                    for (const auto& questInfo : sDataMgr.questDatabaseInfoList)
+                    {
+                        DatabaseQuestInfo* qDbInfo = questInfo.second;
+                        if (!qDbInfo)
+                            continue;
+
+                        // skip if locale is missing
+                        if (qDbInfo->GetTitle(e, i).empty() && qDbInfo->GetDetails(e, i).empty())
+                            continue;
+
+                        hasLocales = true;
+                        counter++;
+
+                        // default english, set cur locale to current checked locale
+                        qDbInfo->SetCurExpansion(e);
+                        qDbInfo->SetCurLocale(i);
+
+                        if ((counter % 1000) == 0)
+                            msg_delay_set(std::to_string(counter), 10);
+                        else if ((counter % 100) == 0)
+                            msg_delay_set(".", 10);
+
+                        //if ((counter % 1000) == 0)
+                        //    msg_nodelay("\n");
+
+                        //msg_nodelay(".");
+
+                        // check if missing texts
+                        if (!qDbInfo->GetEndText(e, 1).empty() && qDbInfo->GetEndText().empty())
+                            missingEndText++;
+                        if (!qDbInfo->GetEndText(e, 1).empty() && !qDbInfo->GetEndText().empty() && strcmp(qDbInfo->GetEndText(e, 1).c_str(), qDbInfo->GetEndText().c_str()) == 0)
+                            hasEngEndText++;
+
+                        if (!qDbInfo->GetObjectives(e, 1).empty() && qDbInfo->GetObjectives().empty())
+                            missingObjText++;
+                        if (!qDbInfo->GetObjectives(e, 1).empty() && !qDbInfo->GetObjectives().empty() && strcmp(qDbInfo->GetObjectives(e, 1).c_str(), qDbInfo->GetObjectives().c_str()) == 0)
+                            hasEngObjText++;
+
+                        if (!qDbInfo->GetRequestItemText(e, 1).empty() && qDbInfo->GetRequestItemText().empty())
+                            missingReqText++;
+                        if (!qDbInfo->GetRequestItemText(e, 1).empty() && !qDbInfo->GetRequestItemText().empty() && strcmp(qDbInfo->GetRequestItemText(e, 1).c_str(), qDbInfo->GetRequestItemText().c_str()) == 0)
+                            hasEngReqText++;
+
+                        if (!qDbInfo->GetOfferRewardText(e, 1).empty() && qDbInfo->GetOfferRewardText().empty())
+                            missingOfferText++;
+                        if (!qDbInfo->GetOfferRewardText(e, 1).empty() && !qDbInfo->GetOfferRewardText().empty() && strcmp(qDbInfo->GetOfferRewardText(e, 1).c_str(), qDbInfo->GetOfferRewardText().c_str()) == 0)
+                            hasEngOfferText++;
+
+                        if (!qDbInfo->GetDetails(e, 1).empty() && qDbInfo->GetDetails().empty())
+                            missingDetails++;
+                        if (!qDbInfo->GetDetails(e, 1).empty() && !qDbInfo->GetDetails().empty() && strcmp(qDbInfo->GetDetails(e, 1).c_str(), qDbInfo->GetDetails().c_str()) == 0)
+                            hasEngDetails++;
+
+                        // Objective 1-4
+                        if (!qDbInfo->GetObjective(0, e, 1).empty() && qDbInfo->GetObjective(0).empty())
+                            missingObjective1++;
+                        if (!qDbInfo->GetObjective(0, e, 1).empty() && !qDbInfo->GetObjective(0).empty() && strcmp(qDbInfo->GetObjective(0, e, 1).c_str(), qDbInfo->GetObjective(0).c_str()) == 0)
+                            hasEngObjective1++;
+
+                        if (!qDbInfo->GetObjective(1, e, 1).empty() && qDbInfo->GetObjective(1).empty())
+                            missingObjective2++;
+                        if (!qDbInfo->GetObjective(1, e, 1).empty() && !qDbInfo->GetObjective(1).empty() && strcmp(qDbInfo->GetObjective(1, e, 1).c_str(), qDbInfo->GetObjective(1).c_str()) == 0)
+                            hasEngObjective2++;
+
+                        if (!qDbInfo->GetObjective(2, e, 1).empty() && qDbInfo->GetObjective(2).empty())
+                            missingObjective3++;
+                        if (!qDbInfo->GetObjective(2, e, 1).empty() && !qDbInfo->GetObjective(2).empty() && strcmp(qDbInfo->GetObjective(2, e, 1).c_str(), qDbInfo->GetObjective(2).c_str()) == 0)
+                            hasEngObjective3++;
+
+                        if (!qDbInfo->GetObjective(3, e, 1).empty() && qDbInfo->GetObjective(3).empty())
+                            missingObjective4++;
+                        if (!qDbInfo->GetObjective(3, e, 1).empty() && !qDbInfo->GetObjective(3).empty() && strcmp(qDbInfo->GetObjective(3, e, 1).c_str(), qDbInfo->GetObjective(3).c_str()) == 0)
+                            hasEngObjective4++;
+                        /*for (auto index = 0; index < 4; ++index)
+                        {
+                            if (!qDbInfo->GetObjective(index, e, 1).empty() && qDbInfo->GetObjective(index).empty())
+                                missingObjective[0][index]++;
+                        }*/
+                    }
+
+                    if (hasLocales)
+                    {
+                        msg_delay("\n");
+                        msg_delay(">   Missing Objectives: %d \n", missingObjText);
+                        msg_delay(">   Missing Details: %d \n", missingDetails);
+                        msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
+                        msg_delay(">   Missing OfferRewardText: %d \n", missingOfferText);
+                        msg_delay(">   Missing EndText: %d \n", missingEndText);
+                        msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
+
+                        if (hasEngObjText)
+                            msg_delay(">   English Objectives: %d \n", hasEngObjText);
+                        if (hasEngDetails)
+                            msg_delay(">   English Details: %d \n", hasEngDetails);
+                        if (hasEngReqText)
+                            msg_delay(">   English RequestItemText: %d \n", hasEngReqText);
+                        if (hasEngOfferText)
+                            msg_delay(">   English OfferRewardText: %d \n", hasEngOfferText);
+                        if (hasEngEndText)
+                            msg_delay(">   English EndText: %d \n", hasEngEndText);
+                    }
+                }
+            }
+            return 1;
+        }
+        if (activity == 6) // Work on Translations
+        {
+            uint32 action = 0;
+            std::cout << "\nSelect Expansion: \n";
+            std::cout << "1) Classic \n";
+            std::cout << "2) TBC \n";
+            std::cout << "3) WotLK \n";
+            std::cout << "4) Retail \n";
+            std::cin >> expansion;
+
+            // Choose locale
+            std::cout << "\nSelect Locale: \n";
+            std::cout << "2) Korean  (LOC 1) \n";
+            std::cout << "3) French  (LOC 2) \n";
+            std::cout << "4) German  (LOC 3) \n";
+            std::cout << "5) Chinese (LOC 4 + 5) \n";
+            std::cout << "6) Spanish (LOC 6 + 7) \n";
+            std::cout << "7) Russian (LOC 8)\n";
+            std::cin >> locale;
+
+            std::cout << "\nSelect Action: \n";
+            std::cout << "1) Add missing English texts (auto) \n";
+            std::cout << "2) Add missing locale texts without name/class/gender tags (auto) \n";
+            std::cout << "3) TODO \n";
+            std::cout << "4) TODO \n";
+            std::cin >> action;
+
+            if (!locale || !expansion)
+                return 0;
+
+            // Auto add missing English texts
+            if (action == 1)
+            {
+                // print wh cache stats
+                msg_delay("\n");
+                msg_delay("> WH: \n");
+
+                int maxQuestId[MAX_EXPANSION];
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(1) + "/quest/";
+                    if (!std::filesystem::is_directory(cacheLocation))
+                    {
+                        msg_delay(">  %s %d \n", localeName(1).c_str(), 0);
+                        continue;
+                    }
+
+                    auto counter = 0;
+                    auto dirIter = std::filesystem::directory_iterator(cacheLocation);
+                    for (auto& fl : dirIter)
+                    {
+                        if (fl.is_regular_file())
+                        {
+                            ++counter;
+                            const std::filesystem::path& p(fl.path());
+                            uint32 qID = stoi(p.stem().string());
+                            if ((int)qID > maxQuestId[e - 1])
+                                maxQuestId[e - 1] = (int)qID;
+                        }
+                    }
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(1).c_str(), counter, maxQuestId[e - 1]);
+                }
+
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                // print db data
+                msg_delay("\n");
+                msg_delay("> DB: \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    auto DbConnect = sDataMgr.GetCon(e);
+                    if (!DbConnect || !DbConnect->IsConnected())
+                    {
+                        msg_delay("> DB: Failed to connect! \n");
+                        //delete DbConnect;
+                        return 0;
+                    }
+
+                    int counter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", counter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(1).c_str(), counter, maxQuestId[e - 1]);
+                }
+
+                // do action
+                msg_delay("\n");
+
+                msg_delay("> Starting... \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    //if (counter > limit)
+                    //    break;
+                    //msg_delay("> %s \n", expansionName(e).c_str());
+                    //msg_delay("> WH: Analyzing... \n");
+                    uint32 counter = 0;
+
+                    msg_delay("\n>  %s \n", localeName(1).c_str());
+
+                    uint32 missingEndText = 0;
+                    uint32 missingObjText = 0;
+                    uint32 missingReqText = 0;
+                    uint32 missingOfferText = 0;
+                    uint32 missingDetails = 0;
+                    uint32 missingObjective1 = 0;
+                    uint32 missingObjective2 = 0;
+                    uint32 missingObjective3 = 0;
+                    uint32 missingObjective4 = 0;
+
+                    uint32 missingDbQuest = 0; // wh exist, db not exist
+
+                    std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(1) + "/quest/";
+                    if (!std::filesystem::is_directory(cacheLocation))
+                        continue;
+
+                    // read existing update file
+                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(1) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    writeToFile("-- QUERIES GO BELOW\n", "missingEngTexts", filesLocation);
+                    std::string updateQueries;
+
+                    // write command
+                    // writeToFile(wh_page.c_str(), std::to_string(id), cacheLocation);
+
+                    auto dirIter = std::filesystem::directory_iterator(cacheLocation);
+                    for (auto &fl: dirIter)
+                    {
+                        if (fl.is_regular_file())
+                        {
+                            const std::filesystem::path &p(fl.path());
+                            uint32 qID = stoi(p.stem().string());
+
+                            WowheadQuestInfo *qWhInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                            if (!qWhInfo)
+                                continue;
+
+                            DatabaseQuestInfo* qDbInfo = LoadDatabaseQuestInfo(qID, e, 1, true, true);
+                            if (!qDbInfo)
+                            {
+                                missingDbQuest++;
+                                continue;
+                            }
+
+                            counter++;
+                            if ((counter % 1000) == 0)
+                                msg_delay_set(std::to_string(counter), 10);
+                            else if ((counter % 100) == 0)
+                                msg_delay_set(".", 10);
+
+                            // check if missing texts
+                            if (!qWhInfo->GetEndText().empty() && qDbInfo->GetEndText().empty())
+                            {
+                                missingEndText++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "endText", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetObjectives().empty() && qDbInfo->GetObjectives().empty())
+                            {
+                                missingObjText++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "objectives", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetRequestItemText().empty() && qDbInfo->GetRequestItemText().empty())
+                            {
+                                missingReqText++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "requestItemText", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetOfferRewardText().empty() && qDbInfo->GetOfferRewardText().empty())
+                            {
+                                missingOfferText++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "offerRewardText", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetDetails().empty() && qDbInfo->GetDetails().empty())
+                            {
+                                missingDetails++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "details", 1, 1) + "\n";
+                            }
+
+                            // Objective 1-4
+                            if (!qWhInfo->GetObjective(0).empty() && qDbInfo->GetObjective(0).empty())
+                            {
+                                missingObjective1++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "objectiveText1", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetObjective(1).empty() && qDbInfo->GetObjective(1).empty())
+                            {
+                                missingObjective2++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "objectiveText2", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetObjective(2).empty() && qDbInfo->GetObjective(2).empty())
+                            {
+                                missingObjective3++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "objectiveText3", 1, 1) + "\n";
+                            }
+
+                            if (!qWhInfo->GetObjective(3).empty() && qDbInfo->GetObjective(3).empty())
+                            {
+                                missingObjective4++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "objectiveText4", 1, 1) + "\n";
+                            }
+                        }
+                    }
+
+                    // print results
+                    msg_delay("\n\n");
+
+                    if (missingDbQuest)
+                        msg_delay(">   Missing Quests in DB: %d \n\n", missingDbQuest);
+
+                    msg_delay(">   Missing Objectives: %d \n", missingObjText);
+                    msg_delay(">   Missing Details: %d \n", missingDetails);
+                    msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
+                    msg_delay(">   Missing OfferRewardText: %d \n", missingOfferText);
+                    msg_delay(">   Missing EndText: %d \n", missingEndText);
+                    msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
+
+                    // write queries to file
+                    writeToFile(updateQueries.c_str(), "missingEngTexts", filesLocation);
+                }
+                // ACTION 1 END
+                return 1;
+            }
         }
 
     }
@@ -1702,24 +2984,107 @@ int main(int argc, char* argv[])
         if (type == 1)
         {
             // load all locales, set current for quick access
-            WowheadQuestInfo* qInfo = LoadQuestCache(entry, expansion, locale);
+            WowheadQuestInfo* qInfo = LoadWowheadQuestInfo(entry, expansion, locale, true);
             if (!qInfo)
             {
-                msg_delay("> " + typeName(1) + " #" + std::to_string(entry) + ": Not Found! (Not Found) \n");
+                msg_delay("> WH " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Wowhead! \n");
                 return 0;
             }
+            // Load English in all cases
+            if (qInfo->GetCurLocale() != 1)
+                qInfo->LoadEntryData(expansion, 1);
+
+            DatabaseQuestInfo* qDbInfo = LoadDatabaseQuestInfo(entry, expansion, locale, true);
+            if (!qDbInfo)
+            {
+                msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                return 0;
+            }
+            // Load English in all cases
+            if (qDbInfo->GetCurLocale() != 1)
+                qDbInfo->LoadEntryData(expansion, 1);
+
+            //Table questCompare;
+            //questCompare.add_row({qInfo->GetDetails()});
+            //questCompare.add_row({"Text", "Wowhead Info", "Database Info"});
+            //questCompare.add_row({"Title", qInfo->GetTitle(), qDbInfo->GetTitle()});
+            //questCompare.add_row({"Objectives", qInfo->GetObjectives(), qDbInfo->GetObjectives()});
+            //questCompare.add_row({"Details", qInfo->GetDetails(), qDbInfo->GetDetails()});
+            //questCompare.add_row({"ReqItemText", qInfo->GetRequestItemText(), qDbInfo->GetRequestItemText()});
+            //questCompare.add_row({"OfferRewardText", qInfo->GetOfferRewardText(), qDbInfo->GetOfferRewardText()});
+            //questCompare.add_row({"EndText", qInfo->GetEndText(), qDbInfo->GetEndText()});
+            //questCompare.add_row({"Objective 1", qInfo->GetObjective(0), qDbInfo->GetObjective(0)});
+            //questCompare.add_row({"Objective 2", qInfo->GetObjective(1), qDbInfo->GetObjective(1)});
+            //questCompare.add_row({"Objective 3", qInfo->GetObjective(2), qDbInfo->GetObjective(2)});
+            //questCompare.add_row({"Objective 4", qInfo->GetObjective(3), qDbInfo->GetObjective(3)});*/
+
+            /*questCompare[0].format()
+                    .padding_top(1)
+                    .padding_bottom(1)
+                    .font_align(FontAlign::center);*/
+
+            //questCompare[0].format().width(10);
+            //questCompare[0].format().width(50);
+            //questCompare[0].format().width(100);
+
+            //questCompare.column(1).format()
+            //        .multi_byte_characters(true);
+            //questCompare.column(2).format()
+            //        .multi_byte_characters(true);
+
+            std::cout << "\n";
+            //questCompare.print(std::cout);
+            //std::cout << questCompare << std::endl;
+
+            /*Table questCompare;
+            questCompare.add_row({"Wowhead Info", "Database Info"});
+            questCompare.add_row({qInfo->GetDetails(), qDbInfo->GetDetails()});
+            questCompare[0].format().width(80);
+            questCompare.print(std::cout);*/
+
+            //printf("|%5s|%5s|%5s|%5s|", qInfo->GetTitle().c_str(), qInfo->GetObjectives().c_str(), qInfo->GetDetails().c_str(), qInfo->GetRequestItemText().c_str());
 
             msg_delay("\n");
-            msg_delay(">  Title: " + qInfo->GetTitle() + "\n\n");
-            msg_delay(">  Objectives: " + qInfo->GetObjectives() + "\n\n");
-            msg_delay(">  Details: " + qInfo->GetDetails() + "\n\n");
-            msg_delay(">  ReqItemText: " + qInfo->GetRequestItemText() + "\n\n");
-            msg_delay(">  OfferRewardText: " + qInfo->GetOfferRewardText() + "\n\n");
-            msg_delay(">  EndText: " + qInfo->GetEndText() + "\n\n");
-            msg_delay(">  Objective 1: " + qInfo->GetObjective(0) + "\n");
-            msg_delay(">  Objective 2: " + qInfo->GetObjective(1) + "\n");
-            msg_delay(">  Objective 3: " + qInfo->GetObjective(2) + "\n");
-            msg_delay(">  Objective 4: " + qInfo->GetObjective(3) + "\n");
+            /*Table tb;
+            tb.add_row({"WH Title"});
+            tb.print(std::cout);*/
+
+            msg_delay("\n> WH Title: " + qInfo->GetTitle() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Title EN: " + qInfo->GetTitle(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB Title: " + qDbInfo->GetTitle() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Title EN: " + qDbInfo->GetTitle(expansion, 1) + "\n");
+            msg_delay("\n> WH Objectives: " + qInfo->GetObjectives() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Objectives EN: " + qInfo->GetObjectives(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB Objectives: " + qDbInfo->GetObjectives() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Objectives EN: " + qDbInfo->GetObjectives(expansion, 1) + "\n");
+            msg_delay("\n> WH Details: " + qInfo->GetDetails() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Details EN: " + qInfo->GetDetails(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB Details: " + qDbInfo->GetDetails() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Details EN: " + qDbInfo->GetDetails(expansion, 1) + "\n");
+            msg_delay("\n> WH ReqItemText: " + qInfo->GetRequestItemText() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH ReqItemText EN: " + qInfo->GetRequestItemText(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB ReqItemText: " + qDbInfo->GetRequestItemText() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB ReqItemText EN: " + qDbInfo->GetRequestItemText(expansion, 1) + "\n");
+            msg_delay("\n> WH OfferRewardText: " + qInfo->GetOfferRewardText() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH OfferRewardText EN: " + qInfo->GetOfferRewardText(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB OfferRewardText: " + qDbInfo->GetOfferRewardText() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB OfferRewardText EN: " + qDbInfo->GetOfferRewardText(expansion, 1) + "\n");
+            msg_delay("\n> WH EndText: " + qInfo->GetEndText() + "\n");
+            if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH EndText EN: " + qInfo->GetEndText(expansion, 1) + "\n");
+            if (qDbInfo) msg_delay("\n> DB EndText: " + qDbInfo->GetEndText() + "\n");
+            if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB EndText EN: " + qDbInfo->GetEndText(expansion, 1) + "\n");
+            msg_delay("\n");
+            msg_delay("\n> WH Objective 1: " + qInfo->GetObjective(0)); if (qInfo->GetCurLocale() != 1) msg_delay(" > WH Objective 1 EN: " + qInfo->GetObjective(0, expansion , 1));
+            msg_delay("\n> WH Objective 2: " + qInfo->GetObjective(1)); if (qInfo->GetCurLocale() != 1) msg_delay(" > WH Objective 2 EN: " + qInfo->GetObjective(1, expansion , 1));
+            msg_delay("\n> WH Objective 3: " + qInfo->GetObjective(2)); if (qInfo->GetCurLocale() != 1) msg_delay(" > WH Objective 3 EN: " + qInfo->GetObjective(2, expansion , 1));
+            msg_delay("\n> WH Objective 4: " + qInfo->GetObjective(3)); if (qInfo->GetCurLocale() != 1) msg_delay(" > WH Objective 4 EN: " + qInfo->GetObjective(3, expansion , 1));
+            if (qDbInfo)
+            {
+                msg_delay("\n> DB Objective 1: " + qDbInfo->GetObjective(0)); if (qDbInfo->GetCurLocale() != 1) msg_delay(" > DB Objective 1 EN: " + qDbInfo->GetObjective(0, expansion , 1));
+                msg_delay("\n> DB Objective 2: " + qDbInfo->GetObjective(1)); if (qDbInfo->GetCurLocale() != 1) msg_delay(" > DB Objective 2 EN: " + qDbInfo->GetObjective(1, expansion , 1));
+                msg_delay("\n> DB Objective 3: " + qDbInfo->GetObjective(2)); if (qDbInfo->GetCurLocale() != 1) msg_delay(" > DB Objective 3 EN: " + qDbInfo->GetObjective(2, expansion , 1));
+                msg_delay("\n> DB Objective 4: " + qDbInfo->GetObjective(3)); if (qDbInfo->GetCurLocale() != 1) msg_delay(" > DB Objective 4 EN: " + qDbInfo->GetObjective(3, expansion , 1));
+            }
 /*
             if (!wh_page.empty())
             {
@@ -1742,7 +3107,7 @@ int main(int argc, char* argv[])
         // NPC
         if (type == 2)
         {
-            std::string wh_page = loadPageOrCache(CACHE_NPC, entry, expansion, locale);
+            std::string wh_page = loadPageOrCache(TYPE_NPC, entry, expansion, locale);
 
             if (!wh_page.empty())
             {
@@ -1770,6 +3135,32 @@ int main(int argc, char* argv[])
     std::cout << "\n\nFinished!\n";
 
     return 1;
+}
+
+QuestStrings LoadQuestDatabaseStrings(uint32 id, uint32 expansion = 1, uint32 locale = 1)
+{
+    QuestStrings qStrings;
+
+    auto DbConnect = sDataMgr.GetCon(expansion);
+    if (!DbConnect || !DbConnect->IsConnected() || !DbConnect->IsEntryExistInDb(TYPE_QUEST, id))
+        return qStrings;
+
+    qStrings = LoadQuestFull(DbConnect, id, locale);
+
+    /*qStrings.title = LoadQuestText(DbConnect, id, "title", locale);
+    qStrings.objectives = LoadQuestText(DbConnect, id, "objectives", locale);
+    qStrings.details = LoadQuestText(DbConnect, id, "details", locale);
+    qStrings.requestItemText = LoadQuestText(DbConnect, id, "requestItemText", locale);
+    qStrings.offerRewardText = LoadQuestText(DbConnect, id, "offerRewardText", locale);
+    qStrings.endText = LoadQuestText(DbConnect, id, "endText", locale);
+
+    qStrings.objectiveList[0] = LoadQuestText(DbConnect, id, "objectiveText1", locale);
+    qStrings.objectiveList[1] = LoadQuestText(DbConnect, id, "objectiveText2", locale);
+    qStrings.objectiveList[2] = LoadQuestText(DbConnect, id, "objectiveText3", locale);
+    qStrings.objectiveList[3] = LoadQuestText(DbConnect, id, "objectiveText4", locale);*/
+
+    //delete DbConnect;
+    return qStrings;
 }
 
 QuestStrings LoadQuestCacheStrings(const std::string &whPage, uint32 locale)
@@ -1815,27 +3206,41 @@ QuestStrings LoadQuestCacheStrings(const std::string &whPage, uint32 locale)
     return qStrings;
 }
 
-WowheadCacheEntry::WowheadCacheEntry(uint32 id, CacheType type, uint32 expansion, uint32 locale)
+WowGameEntry::WowGameEntry(uint32 id, TypeId type, uint32 expansion, uint32 locale, EntrySource src)
 {
     entry = id;
-    cacheType = type;
+    typeId = type;
     curExpansion = expansion;
     curLocale = locale;
-    isLoaded = false;
+    for (auto i = 1; i <= MAX_EXPANSION; ++i)
+        for (auto l = 1; l <= MAX_LOCALE; ++l)
+            isLoaded[i][l] = false;
+
+    source = src;
 }
 
 
-void WowheadQuestInfo::LoadCacheData(uint32 expansion, uint32 locale)
+void WowheadQuestInfo::LoadEntryData(uint32 expansion, uint32 locale)
 {
-    std::string cachePage = loadPageOrCache(CACHE_QUEST, GetEntry(), expansion, locale, true);
+    std::string cachePage = loadPageOrCache(TYPE_QUEST, GetEntry(), expansion, locale, true);
     if (cachePage.empty())
         return;
 
-    questTexts[expansion][locale] = LoadQuestCacheStrings(cachePage, locale);
-    SetLoaded(true);
+    SetQuestTexts(expansion, locale, LoadQuestCacheStrings(cachePage, locale));
+    SetLoaded(expansion, locale, true);
 }
 
-std::string WowheadQuestInfo::GetTitle(uint32 expansion, uint32 locale)
+void DatabaseQuestInfo::LoadEntryData(uint32 expansion, uint32 locale)
+{
+    QuestStrings qstr = LoadQuestDatabaseStrings(GetEntry(), expansion, locale);
+    if (!qstr.title.empty() || !qstr.details.empty())
+    {
+        SetQuestTexts(expansion, locale, qstr);
+        SetLoaded(expansion, locale, true);
+    }
+}
+
+std::string QuestInfo::GetTitle(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].title;
@@ -1843,7 +3248,7 @@ std::string WowheadQuestInfo::GetTitle(uint32 expansion, uint32 locale)
         return questTexts[expansion][locale].title;
 }
 
-std::string WowheadQuestInfo::GetObjectives(uint32 expansion, uint32 locale)
+std::string QuestInfo::GetObjectives(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].objectives;
@@ -1851,7 +3256,7 @@ std::string WowheadQuestInfo::GetObjectives(uint32 expansion, uint32 locale)
         return questTexts[expansion][locale].objectives;
 }
 
-std::string WowheadQuestInfo::GetDetails(uint32 expansion, uint32 locale)
+std::string QuestInfo::GetDetails(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].details;
@@ -1859,7 +3264,7 @@ std::string WowheadQuestInfo::GetDetails(uint32 expansion, uint32 locale)
         return questTexts[expansion][locale].details;
 }
 
-std::string WowheadQuestInfo::GetRequestItemText(uint32 expansion, uint32 locale)
+std::string QuestInfo::GetRequestItemText(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].requestItemText;
@@ -1867,7 +3272,7 @@ std::string WowheadQuestInfo::GetRequestItemText(uint32 expansion, uint32 locale
         return questTexts[expansion][locale].requestItemText;
 }
 
-std::string WowheadQuestInfo::GetOfferRewardText(uint32 expansion, uint32 locale)
+std::string QuestInfo::GetOfferRewardText(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].offerRewardText;
@@ -1875,7 +3280,7 @@ std::string WowheadQuestInfo::GetOfferRewardText(uint32 expansion, uint32 locale
         return questTexts[expansion][locale].offerRewardText;
 }
 
-std::string WowheadQuestInfo::GetEndText(uint32 expansion, uint32 locale)
+std::string QuestInfo::GetEndText(uint32 expansion, uint32 locale)
 {
     if (expansion == 0 || locale == 0)
         return questTexts[GetCurExpansion()][GetCurLocale()].endText;
@@ -1883,7 +3288,7 @@ std::string WowheadQuestInfo::GetEndText(uint32 expansion, uint32 locale)
         return questTexts[expansion][locale].endText;
 }
 
-std::string WowheadQuestInfo::GetObjective(uint32 index, uint32 expansion, uint32 locale)
+std::string QuestInfo::GetObjective(uint32 index, uint32 expansion, uint32 locale)
 {
     if (index < 0 || index > 3)
         return "";
@@ -1892,4 +3297,79 @@ std::string WowheadQuestInfo::GetObjective(uint32 index, uint32 expansion, uint3
         return questTexts[GetCurExpansion()][GetCurLocale()].objectiveList[index];
     else
         return questTexts[expansion][locale].objectiveList[index];
+}
+
+std::string QuestInfo::GetQuestPart(const std::string& qPart, uint32 expansion, uint32 locale)
+{
+    if (qPart == "title")
+        return GetTitle(expansion, locale);
+    if (qPart == "objectives")
+        return GetObjective(expansion, locale);
+    if (qPart == "details")
+        return GetDetails(expansion, locale);
+    if (qPart == "requestItemText")
+        return GetRequestItemText(expansion, locale);
+    if (qPart == "offerRewardText")
+        return GetOfferRewardText(expansion, locale);
+    if (qPart == "endText")
+        return GetEndText(expansion, locale);
+
+    if (qPart == "objectiveText1")
+        return GetObjective(0, expansion, locale);
+    if (qPart == "objectiveText2")
+        return GetObjective(1, expansion, locale);
+    if (qPart == "objectiveText3")
+        return GetObjective(2, expansion, locale);
+    if (qPart == "objectiveText4")
+        return GetObjective(3, expansion, locale);
+
+    return "";
+}
+
+DatabaseConnect::DatabaseConnect(const char *host, uint32 port, const char *user, const char *pass, const char *dbname)
+{
+    isConnected = false;
+    mysql = new MYSQL;
+    mysql_init(mysql);
+    mysql_options(mysql, MYSQL_READ_DEFAULT_GROUP, "your_prog_name");
+    mysql_options(mysql, MYSQL_SET_CHARSET_NAME, "utf8");
+    mysql_options(mysql, MYSQL_INIT_COMMAND, "SET NAMES utf8");
+    if (!mysql_real_connect(mysql, host, user, pass, dbname, port, nullptr, 0)) {
+        fprintf(stderr, "Failed to connect to database: Error: %s\n",
+                mysql_error(mysql));
+
+        mysql_close(mysql);
+    }
+
+    isConnected = true;
+}
+
+DatabaseConnect::~DatabaseConnect()
+{
+    mysql_close(mysql);
+}
+
+void DataManager::Initialize()
+{
+    if (isInitialized)
+        return;
+
+    for (auto i = 0; i < MAX_EXPANSION; ++i)
+    {
+        auto dbCon = new DatabaseConnect("127.0.0.1", 3310, "root", "123456", dbName(i + 1));
+        if (!dbCon->IsConnected())
+            delete dbCon;
+        else
+        {
+            isInitialized = true;
+            mysqlCon[i] = dbCon;
+        }
+    }
+
+    // fill quest database entries with nullptr
+    for (auto i = 1; i < 30000; ++i)
+    {
+        questDatabaseInfoList[i] = nullptr;
+        questWowheadInfoList[i] = nullptr;
+    }
 }

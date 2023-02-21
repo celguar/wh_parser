@@ -9,6 +9,7 @@
 #include <thread>
 #include <sstream>
 #include <filesystem>
+#include <utility>
 #include <mysql/mysql.h>
 
 typedef std::int64_t int64;
@@ -24,11 +25,18 @@ typedef std::uint8_t uint8;
 #define MAX_LOCALE 7
 #define MAX_QUEST_PARTS 7
 
-enum CacheType
+enum TypeId
 {
-    CACHE_NONE = 0,
-    CACHE_QUEST = 1,
-    CACHE_NPC = 2,
+    TYPE_NONE  = 0,
+    TYPE_QUEST = 1,
+    TYPE_NPC   = 2,
+};
+
+enum EntrySource
+{
+    SRC_NO = 0,
+    SRC_WH = 1,
+    SRC_DB = 2,
 };
 
 struct QuestStrings
@@ -42,50 +50,75 @@ struct QuestStrings
     std::string objectiveList[4];
 };
 
-typedef std::map<uint32, std::map<uint32, QuestStrings> > QuestStringsMap;
-
-class WowheadCacheEntry
+class DatabaseConnect
 {
 public:
-    explicit WowheadCacheEntry(uint32 id, CacheType type, uint32 expansion = 0, uint32 locale = 0);
+    explicit DatabaseConnect(const char *host, uint32 port, const char *user, const char *pass, const char *dbname);
+
+    virtual ~DatabaseConnect();
+
+    [[nodiscard]] bool IsConnected() const { return isConnected; }
+    bool IsEntryExistInDb(TypeId type, uint32 id);
+    bool RunStringStmt(const std::string& command, std::vector<std::string>& result, int32 numStrings = 1, bool silent = false);
+    bool RunIntStmt(const std::string& command, std::vector<int>& result, int32 numStrings = 1);
+    bool GetDbString(const std::string& command, std::string& result, bool silent = false);
+    bool GetDbStrings(const std::string& command, std::vector<std::string>& result, int numStrings, bool silent = false);
+    bool GetDbInt(const std::string& command, int& result);
+
+    MYSQL* GetMysql() { return mysql; }
+
+private:
+    bool isConnected;
+    MYSQL* mysql;
+};
+
+typedef std::map<uint32, std::map<uint32, QuestStrings> > QuestStringsMap;
+
+class WowGameEntry
+{
+public:
+    explicit WowGameEntry(uint32 id, TypeId type, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO);
 
     // load info
-    virtual void LoadCacheData(uint32 expansion, uint32 locale) {}
-    void LoadCacheDataAll()
+    virtual void LoadEntryData(uint32 expansion, uint32 locale) {}
+    void LoadEntryDataAllVersions()
     {
         for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
         {
             for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
             {
-                LoadCacheData(e, i);
+                LoadEntryData(e, i);
             }
         }
     }
 
     void SetCurLocale(uint32 locale) { curLocale = locale; }
     void SetCurExpansion(uint32 expansion) { curExpansion = expansion; }
+    void SetCurVersion(uint32 expansion, uint32 locale) { curExpansion = expansion; curLocale = locale; }
     [[nodiscard]] uint32 GetCurLocale() const { return curLocale; }
     [[nodiscard]] uint32 GetCurExpansion() const { return curExpansion; }
-    [[nodiscard]] bool IsLoaded() const { return isLoaded; };
-    void SetLoaded(bool loaded) { isLoaded = loaded; }
-    CacheType GetCacheType() { return cacheType; };
+    [[nodiscard]] bool IsLoaded(uint32 expansion, uint32 locale) const { return isLoaded[expansion][locale]; };
+    void SetLoaded(uint32 expansion, uint32 locale, bool loaded) { isLoaded[expansion][locale] = loaded; }
+    TypeId GetCacheType() { return typeId; };
     [[nodiscard]] uint32 GetEntry() const { return entry; }
 
 private:
     uint32 entry;
-    CacheType cacheType;
-    bool isLoaded;
+    TypeId typeId;
+    bool isLoaded[MAX_EXPANSION + 1][MAX_LOCALE + 1];
     uint32 curLocale;
     uint32 curExpansion;
+    EntrySource source;
 };
 
 QuestStrings LoadQuestCacheStrings(const std::string& whPage, uint32 locale);
 
-class WowheadQuestInfo: public WowheadCacheEntry
+class QuestInfo: public WowGameEntry
 {
 public:
-    explicit WowheadQuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : WowheadCacheEntry(id, CACHE_QUEST, expansion, locale) {}
-    void LoadCacheData(uint32 expansion, uint32 locale) override;
+    explicit QuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO) : WowGameEntry(id, TYPE_QUEST, expansion, locale, src) {}
+    // placeholder
+    //void LoadEntryData(uint32 expansion, uint32 locale) override;
 
 public:
     std::string GetTitle(uint32 expansion = 0, uint32 locale = 0);
@@ -95,12 +128,60 @@ public:
     std::string GetOfferRewardText(uint32 expansion = 0, uint32 locale = 0);
     std::string GetEndText(uint32 expansion = 0, uint32 locale = 0);
     std::string GetObjective(uint32 index, uint32 expansion = 0, uint32 locale = 0);
+    std::string GetQuestPart(const std::string& qPart, uint32 expansion = 0, uint32 locale = 0);
+    void SetQuestTexts(uint32 expansion, uint32 locale, QuestStrings qStrings) { questTexts[expansion][locale] = std::move(qStrings); }
 private:
     QuestStringsMap questTexts;
 };
 
-WowheadQuestInfo* LoadQuestCache(uint32 id);
+class WowheadQuestInfo: public QuestInfo
+{
+public:
+    explicit WowheadQuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : QuestInfo(id, expansion, locale, SRC_WH) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
 
-std::map<uint32, WowheadQuestInfo*> questWowheadInfoList;
+class DatabaseQuestInfo: public QuestInfo
+{
+public:
+    explicit DatabaseQuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : QuestInfo(id, expansion, locale, SRC_DB) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+
+class DataManager
+{
+public:
+    DataManager()
+    {
+        mysqlCon[0] = nullptr;
+        mysqlCon[1] = nullptr;
+        mysqlCon[2] = nullptr;
+        isInitialized = false;
+    };
+    virtual ~DataManager()
+    {
+        delete mysqlCon[0];
+        delete mysqlCon[1];
+        delete mysqlCon[2];
+    };
+    static DataManager& instance()
+    {
+        static DataManager instance;
+        return instance;
+    }
+
+    void Initialize();
+    DatabaseConnect* GetCon(uint32 expansion) { return mysqlCon[expansion - 1]; }
+    std::map<uint32, WowheadQuestInfo*> questWowheadInfoList;
+    std::map<uint32, DatabaseQuestInfo*> questDatabaseInfoList;
+    bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
+
+private:
+    DatabaseConnect* mysqlCon[MAX_EXPANSION]{};
+    bool isInitialized;
+};
+
+#define sDataMgr DataManager::instance()
 
 #endif //WH_PARSER_MAIN_H
