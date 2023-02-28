@@ -291,6 +291,348 @@ const char* questColumnName(const std::string& partName)
     return nullptr;
 }
 
+void replaceNewLine(std::string& theText)
+{
+    const std::regex re("\\n");
+    theText = std::regex_replace(theText, re, "$B");
+}
+
+void replaceNameTag(std::string& theText, uint32 locale = 0)
+{
+    std::vector<std::string> nameTagsUp;
+    nameTagsUp.emplace_back("<Name>");
+    nameTagsUp.emplace_back("<Nombre>");
+    nameTagsUp.emplace_back("<Nom>");
+    nameTagsUp.emplace_back("<Имя>");
+
+    std::vector<std::string> nameTagsLow;
+    nameTagsLow.emplace_back("<name>");
+    nameTagsLow.emplace_back("<nombre>");
+    nameTagsLow.emplace_back("<nom>");
+    nameTagsLow.emplace_back("<имя>");
+
+    for (const auto& name : nameTagsUp)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$N");
+    }
+    for (const auto& name : nameTagsLow)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$N");
+    }
+
+    // find buggy russian tags
+    if (locale == 7)
+    {
+        const std::regex re1(R"(\|\d-\d\(\$N\))");
+        theText = std::regex_replace(theText, re1, "$N");
+        const std::regex re2(R"(\|\d-\d\(\$n\))");
+        theText = std::regex_replace(theText, re2, "$N");
+    }
+}
+
+void replaceRaceTag(std::string& theText, uint32 locale = 0)
+{
+    std::vector<std::string> nameTagsUp;
+    nameTagsUp.emplace_back("<Race>");
+    nameTagsUp.emplace_back("<Raza>");
+    nameTagsUp.emplace_back("<Раса>");
+
+    std::vector<std::string> nameTagsLow;
+    nameTagsLow.emplace_back("<race>");
+    nameTagsLow.emplace_back("<raza>");
+    nameTagsLow.emplace_back("<раса>");
+
+    for (const auto& name : nameTagsUp)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$R");
+    }
+    for (const auto& name : nameTagsLow)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$R");
+    }
+
+    if (locale == 7)
+    {
+        std::vector<std::string> posClasses;
+        posClasses.emplace_back("человек");
+        posClasses.emplace_back("орк");
+        posClasses.emplace_back("нежить");
+        posClasses.emplace_back("таурен");
+        posClasses.emplace_back("гном");
+        posClasses.emplace_back("дворф");
+        posClasses.emplace_back("тролль");
+        posClasses.emplace_back("ночной эльф");
+        posClasses.emplace_back("дреней");
+        posClasses.emplace_back("эльф крови");
+        posClasses.emplace_back("Человек");
+        posClasses.emplace_back("Орк");
+        posClasses.emplace_back("Нежить");
+        posClasses.emplace_back("Таурен");
+        posClasses.emplace_back("Гном");
+        posClasses.emplace_back("Дворф");
+        posClasses.emplace_back("Тролль");
+        posClasses.emplace_back("Ночной эльф");
+        posClasses.emplace_back("Дреней");
+        posClasses.emplace_back("Эльф крови");
+
+        for (const auto& className : posClasses)
+        {
+            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
+            theText = std::regex_replace(theText, re, "$R");
+        }
+
+        for (auto className : posClasses)
+        {
+            className[0] = toupper(className[0]);
+            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
+            theText = std::regex_replace(theText, re, "$R");
+        }
+
+        const std::regex re1(R"(\|\d-\d\(\$R\))");
+        theText = std::regex_replace(theText, re1, "$R");
+        const std::regex re2(R"(\|\d-\d\(\$r\))");
+        theText = std::regex_replace(theText, re2, "$R");
+        const std::regex re3(R"(\|\d-\d\(\$R)");
+        theText = std::regex_replace(theText, re3, "$R");
+        const std::regex re4(R"(\|\d-\d\(\$r)");
+        theText = std::regex_replace(theText, re4, "$R");
+    }
+}
+
+void replaceClassTag(std::string& theText, uint32 locale = 0)
+{
+    std::vector<std::string> nameTagsUp;
+    nameTagsUp.emplace_back("<Class>");
+    nameTagsUp.emplace_back("<Clase>");
+    nameTagsUp.emplace_back("<Classe>");
+    nameTagsUp.emplace_back("<Класс>");
+
+    std::vector<std::string> nameTagsLow;
+    nameTagsLow.emplace_back("<class>");
+    nameTagsLow.emplace_back("<clase>");
+    nameTagsLow.emplace_back("<classe>");
+    nameTagsLow.emplace_back("<класс>");
+
+    for (const auto& name : nameTagsUp)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$C");
+    }
+    for (const auto& name : nameTagsLow)
+    {
+        const std::regex re(name);
+        theText = std::regex_replace(theText, re, "$C");
+    }
+
+    if (locale == 7)
+    {
+        std::vector<std::string> posClasses;
+        posClasses.emplace_back("чернокнижник");
+        posClasses.emplace_back("жрец");
+        posClasses.emplace_back("воин");
+        posClasses.emplace_back("друид");
+        posClasses.emplace_back("паладин");
+        posClasses.emplace_back("разбойник");
+        posClasses.emplace_back("шаман");
+        posClasses.emplace_back("маг");
+        posClasses.emplace_back("охотник");
+        posClasses.emplace_back("рыцарь смерти");
+        posClasses.emplace_back("Чернокнижник");
+        posClasses.emplace_back("Жрец");
+        posClasses.emplace_back("Воин");
+        posClasses.emplace_back("Друид");
+        posClasses.emplace_back("Паладин");
+        posClasses.emplace_back("Разбойник");
+        posClasses.emplace_back("Шаман");
+        posClasses.emplace_back("Маг");
+        posClasses.emplace_back("Охотник");
+        posClasses.emplace_back("Рыцарь смерти");
+
+        for (const auto& className : posClasses)
+        {
+            std::string rege = "\\|\\d-\\d\\(" + className + "\\)";
+            const std::regex re(rege);
+            theText = std::regex_replace(theText, re, "$C");
+        }
+
+        const std::regex re1(R"(\|\d-\d\(\$C\))");
+        theText = std::regex_replace(theText, re1, "$C");
+        const std::regex re2(R"(\|\d-\d\(\$c\))");
+        theText = std::regex_replace(theText, re2, "$C");
+        const std::regex re3(R"(\|\d-\d\(\$C)");
+        theText = std::regex_replace(theText, re3, "$C");
+        const std::regex re4(R"(\|\d-\d\(\$c)");
+        theText = std::regex_replace(theText, re4, "$C");
+    }
+}
+
+bool hasNameTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+{
+    std::string questText = qInfo->GetQuestPart(partName, expansion, locale);
+    if (questText.empty())
+        return false;
+
+    std::vector<std::string> nameTags;
+    nameTags.emplace_back("$N");
+    nameTags.emplace_back("$n");
+    if (!dbOnly)
+    {
+        nameTags.emplace_back("<name>");
+        nameTags.emplace_back("<nombre>");
+        nameTags.emplace_back("<Name>");
+        nameTags.emplace_back("<Nombre>");
+        nameTags.emplace_back("<nom>");
+        nameTags.emplace_back("<Nom>");
+        nameTags.emplace_back("<имя>");
+        nameTags.emplace_back("<Имя>");
+    }
+    return std::any_of(nameTags.begin(), nameTags.end(), [questText](const std::string& str){return questText.find(str) != std::string::npos;});
+}
+
+bool hasRaceTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+{
+    std::string questText = qInfo->GetQuestPart(partName, expansion, locale);
+    if (questText.empty())
+        return false;
+
+    std::vector<std::string> nameTags;
+    nameTags.emplace_back("$R");
+    nameTags.emplace_back("$r");
+    if (!dbOnly)
+    {
+        nameTags.emplace_back("<race>");
+        nameTags.emplace_back("<Race>");
+        nameTags.emplace_back("<raza>");
+        nameTags.emplace_back("<Raza>");
+        nameTags.emplace_back("<раса>");
+        nameTags.emplace_back("<Раса>");
+    }
+
+    // find buggy russian tags
+    if (locale == 7)
+    {
+        std::vector<std::string> posClasses;
+        posClasses.emplace_back("человек");
+        posClasses.emplace_back("орк");
+        posClasses.emplace_back("нежить");
+        posClasses.emplace_back("таурен");
+        posClasses.emplace_back("гном");
+        posClasses.emplace_back("дворф");
+        posClasses.emplace_back("тролль");
+        posClasses.emplace_back("ночной эльф");
+        posClasses.emplace_back("дреней");
+        posClasses.emplace_back("эльф крови");
+        posClasses.emplace_back("Человек");
+        posClasses.emplace_back("Орк");
+        posClasses.emplace_back("Нежить");
+        posClasses.emplace_back("Таурен");
+        posClasses.emplace_back("Гном");
+        posClasses.emplace_back("Дворф");
+        posClasses.emplace_back("Тролль");
+        posClasses.emplace_back("Ночной эльф");
+        posClasses.emplace_back("Дреней");
+        posClasses.emplace_back("Эльф крови");
+
+        for (const auto& className : posClasses)
+        {
+            //nameTags.emplace_back("|3-6(" + className + ")");
+            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
+            if (std::regex_search(questText, re))
+                return true;
+        }
+    }
+
+    return std::any_of(nameTags.begin(), nameTags.end(), [questText](const std::string& str){return questText.find(str) != std::string::npos;});
+}
+
+bool hasClassTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+{
+    std::string questText = qInfo->GetQuestPart(partName, expansion, locale);
+    if (questText.empty())
+        return false;
+
+    std::vector<std::string> nameTags;
+    nameTags.emplace_back("$C");
+    nameTags.emplace_back("$c");
+    if (!dbOnly)
+    {
+        nameTags.emplace_back("<class>");
+        nameTags.emplace_back("<Class>");
+        nameTags.emplace_back("<clase>");
+        nameTags.emplace_back("<Clase>");
+        nameTags.emplace_back("<classe>");
+        nameTags.emplace_back("<Classe>");
+        nameTags.emplace_back("<класс>");
+        nameTags.emplace_back("<Класс>");
+    }
+
+    // find buggy russian tags
+    if (locale == 7)
+    {
+        std::vector<std::string> posClasses;
+        posClasses.emplace_back("чернокнижник");
+        posClasses.emplace_back("жрец");
+        posClasses.emplace_back("воин");
+        posClasses.emplace_back("друид");
+        posClasses.emplace_back("паладин");
+        posClasses.emplace_back("разбойник");
+        posClasses.emplace_back("шаман");
+        posClasses.emplace_back("маг");
+        posClasses.emplace_back("охотник");
+        posClasses.emplace_back("рыцарь смерти");
+        posClasses.emplace_back("Чернокнижник");
+        posClasses.emplace_back("Жрец");
+        posClasses.emplace_back("Воин");
+        posClasses.emplace_back("Друид");
+        posClasses.emplace_back("Паладин");
+        posClasses.emplace_back("Разбойник");
+        posClasses.emplace_back("Шаман");
+        posClasses.emplace_back("Маг");
+        posClasses.emplace_back("Охотник");
+        posClasses.emplace_back("Рыцарь смерти");
+
+        for (const auto& className : posClasses)
+        {
+            //nameTags.emplace_back("|3-6(" + className + ")");
+            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
+            if (std::regex_search(questText, re))
+                return true;
+        }
+    }
+
+    //msg = std::regex_replace(msg, std::regex("%s"), name);
+
+    return std::any_of(nameTags.begin(), nameTags.end(), [questText](const std::string& str){return questText.find(str) != std::string::npos;});
+}
+
+bool hasGenderTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+{
+    std::string questText = qInfo->GetQuestPart(partName, expansion, locale);
+    if (questText.empty())
+        return false;
+
+    std::vector<std::string> nameTags;
+    nameTags.emplace_back("$C");
+    nameTags.emplace_back("$c");
+    if (!dbOnly)
+    {
+        nameTags.emplace_back("<class>");
+        nameTags.emplace_back("<Class>");
+        nameTags.emplace_back("<clase>");
+        nameTags.emplace_back("<Clase>");
+        nameTags.emplace_back("<classe>");
+        nameTags.emplace_back("<Classe>");
+        nameTags.emplace_back("<класс>");
+        nameTags.emplace_back("<Класс>");
+    }
+
+    return std::any_of(nameTags.begin(), nameTags.end(), [questText](const std::string& str){return questText.find(str) != std::string::npos;});
+}
+
 std::string updateQuestFromWhQuery(WowheadQuestInfo* whInfo, DatabaseQuestInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
 {
     if (!whInfo || !dbInfo || !whInfo->IsLoaded(whInfo->GetCurExpansion(), whInfo->GetCurLocale()) || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
@@ -299,10 +641,60 @@ std::string updateQuestFromWhQuery(WowheadQuestInfo* whInfo, DatabaseQuestInfo* 
     std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
     std::string colName = questColumnName(partName, locale);
     std::string whText = whInfo->GetQuestPart(partName, expansion, locale);
+    if (whText.empty())
+        return "";
     //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
+
+    // replace nameTags
+    //replaceNameTag(whText, locale);
+    //replaceClassTag(whText, locale);
+    //replaceRaceTag(whText, locale);
+    replaceNewLine(whText);
 
     char *tStr = new char[strlen(whText.c_str())*2+1];
     mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, whText.c_str(), strlen(whText.c_str()));
+    std::string replaceString(tStr);
+    delete [] tStr;
+
+    std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE entry = '" + std::to_string(dbInfo->GetEntry()) + "';";
+    return command;
+}
+
+std::string updateQuestFromTextQuery(const std::string& replace, DatabaseQuestInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
+{
+    if (!dbInfo || replace.empty() || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
+        return "";
+
+    std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
+    std::string colName = questColumnName(partName, locale);
+    std::string replaceText = replace;
+    //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
+
+    // replace nameTags
+    //replaceNameTag(replaceText, locale);
+    //replaceClassTag(replaceText, locale);
+    //replaceRaceTag(replaceText, locale);
+    replaceNewLine(replaceText);
+
+    char *tStr = new char[strlen(replaceText.c_str())*2+1];
+    mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, replaceText.c_str(), strlen(replaceText.c_str()));
+    std::string replaceString(tStr);
+    delete [] tStr;
+
+    std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE entry = '" + std::to_string(dbInfo->GetEntry()) + "';";
+    return command;
+}
+
+std::string updateQuestFromTextQueryNoTags(const std::string& replace, DatabaseQuestInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
+{
+    if (!dbInfo || replace.empty() || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
+        return "";
+
+    std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
+    std::string colName = questColumnName(partName, locale);
+
+    char *tStr = new char[strlen(replace.c_str())*2+1];
+    mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, replace.c_str(), strlen(replace.c_str()));
     std::string replaceString(tStr);
     delete [] tStr;
 
@@ -2139,9 +2531,8 @@ int main(int argc, char* argv[])
             std::map<uint32, std::string> englishReqText;
             std::map<uint32, std::string> englishOfferText;
             //unsigned int limit = 10000;
-            msg_delay("\n");
 
-            msg_delay("> WH: Analyzing data... \n\n");
+            msg_delay("\n> WH: Analyzing data... \n\n");
 
             for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
             {
@@ -2164,6 +2555,7 @@ int main(int argc, char* argv[])
                     counter = 0;
                     msg_delay("\n>  %s \n", localeName(i).c_str());
 
+                    uint32 missingTitle = 0;
                     uint32 missingEndText = 0;
                     uint32 missingObjText = 0;
                     uint32 missingReqText = 0;
@@ -2175,6 +2567,7 @@ int main(int argc, char* argv[])
                     uint32 missingObjective4 = 0;
 
                     // has english text
+                    uint32 hasEngTitle = 0;
                     uint32 hasEngEndText = 0;
                     uint32 hasEngObjText = 0;
                     uint32 hasEngReqText = 0;
@@ -2184,6 +2577,21 @@ int main(int argc, char* argv[])
                     uint32 hasEngObjective2 = 0;
                     uint32 hasEngObjective3 = 0;
                     uint32 hasEngObjective4 = 0;
+
+                    // wildcards
+                    uint32 missingClassTag = 0;
+                    uint32 missingRaceTag = 0;
+                    uint32 missingNameTag = 0;
+
+                    // write statistics details
+                    std::string filesLocation = "stats/wh/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    writeToFile("-- WH Locales Stats\n", "missingQuestText", filesLocation);
+                    writeToFile("-- WH Locales Stats\n", "engQuestText", filesLocation);
+                    writeToFile("-- WH Locales Stats\n", "missingTags", filesLocation);
+                    std::string missingQuestText;
+                    std::string engQuestText;
+                    std::string missingTags;
 
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
                     if (!std::filesystem::is_directory(cacheLocation))
@@ -2225,7 +2633,7 @@ int main(int argc, char* argv[])
                     if (i == 1)
                         continue;
 
-                    msg_delay("> WH: Checking missing data... \n");
+                    msg_delay("\n> WH: Checking missing data... \n");
 
                     bool hasLocales = false;
                     counter = 0;
@@ -2236,8 +2644,8 @@ int main(int argc, char* argv[])
                             continue;
 
                         // skip if locale is missing
-                        if (qWhInfo->GetTitle(e, i).empty() && qWhInfo->GetDetails(e, i).empty())
-                            continue;
+                        /*if (qWhInfo->GetTitle(e, i).empty() && qWhInfo->GetDetails(e, i).empty() && qWhInfo->GetObjective(e, i).empty())
+                            continue;*/
 
                         hasLocales = true;
                         counter++;
@@ -2257,51 +2665,206 @@ int main(int argc, char* argv[])
                         //msg_nodelay(".");
 
                         // check if missing texts
+                        if (!qWhInfo->GetTitle(e, 1).empty() && qWhInfo->GetTitle().empty())
+                        {
+                            missingTitle++;
+                            missingQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetTitle(e, 1).empty() && !qWhInfo->GetTitle().empty() && strcmp(qWhInfo->GetTitle(e, 1).c_str(), qWhInfo->GetTitle().c_str()) == 0)
+                        {
+                            hasEngTitle++;
+                            engQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+
                         if (!qWhInfo->GetEndText(e, 1).empty() && qWhInfo->GetEndText().empty())
+                        {
                             missingEndText++;
+                            missingQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetEndText(e, 1).empty() && !qWhInfo->GetEndText().empty() && strcmp(qWhInfo->GetEndText(e, 1).c_str(), qWhInfo->GetEndText().c_str()) == 0)
+                        {
                             hasEngEndText++;
+                            engQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetEndText(e, 1).empty() && !qWhInfo->GetEndText().empty())
+                        {
+                            if (hasNameTag(qWhInfo, "endText", false, e, 1) && !hasNameTag(qWhInfo, "endText"))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qWhInfo, "endText", false, e, 1) && !hasRaceTag(qWhInfo, "endText"))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qWhInfo, "endText", false, e, 1) && !hasClassTag(qWhInfo, "endText"))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qWhInfo->GetObjectives(e, 1).empty() && qWhInfo->GetObjectives().empty())
+                        {
                             missingObjText++;
+                            missingQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetObjectives(e, 1).empty() && !qWhInfo->GetObjectives().empty() && strcmp(qWhInfo->GetObjectives(e, 1).c_str(), qWhInfo->GetObjectives().c_str()) == 0)
+                        {
                             hasEngObjText++;
+                            engQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetObjectives(e, 1).empty() && !qWhInfo->GetObjectives().empty())
+                        {
+                            if (hasNameTag(qWhInfo, "objectives", false,e, 1) && !hasNameTag(qWhInfo, "objectives"))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qWhInfo, "objectives", false, e, 1) && !hasRaceTag(qWhInfo, "objectives"))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qWhInfo, "objectives", false, e, 1) && !hasClassTag(qWhInfo, "objectives"))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qWhInfo->GetRequestItemText(e, 1).empty() && qWhInfo->GetRequestItemText().empty())
+                        {
                             missingReqText++;
+                            missingQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetRequestItemText(e, 1).empty() && !qWhInfo->GetRequestItemText().empty() && strcmp(qWhInfo->GetRequestItemText(e, 1).c_str(), qWhInfo->GetRequestItemText().c_str()) == 0)
+                        {
                             hasEngReqText++;
+                            engQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetRequestItemText(e, 1).empty() && !qWhInfo->GetRequestItemText().empty())
+                        {
+                            if (hasNameTag(qWhInfo, "requestItemText", false, e, 1) && !hasNameTag(qWhInfo, "requestItemText"))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qWhInfo, "requestItemText", false, e, 1) && !hasRaceTag(qWhInfo, "requestItemText"))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qWhInfo, "requestItemText", false, e, 1) && !hasClassTag(qWhInfo, "requestItemText"))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qWhInfo->GetOfferRewardText(e, 1).empty() && qWhInfo->GetOfferRewardText().empty())
+                        {
                             missingOfferText++;
+                            missingQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetOfferRewardText(e, 1).empty() && !qWhInfo->GetOfferRewardText().empty() && strcmp(qWhInfo->GetOfferRewardText(e, 1).c_str(), qWhInfo->GetOfferRewardText().c_str()) == 0)
+                        {
                             hasEngOfferText++;
+                            engQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetOfferRewardText(e, 1).empty() && !qWhInfo->GetOfferRewardText().empty())
+                        {
+                            if (hasNameTag(qWhInfo, "offerRewardText", false, e, 1) && !hasNameTag(qWhInfo, "offerRewardText"))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qWhInfo, "offerRewardText", false, e, 1) && !hasRaceTag(qWhInfo, "offerRewardText"))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qWhInfo, "offerRewardText", false, e, 1) && !hasClassTag(qWhInfo, "offerRewardText"))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qWhInfo->GetDetails(e, 1).empty() && qWhInfo->GetDetails().empty())
+                        {
                             missingDetails++;
+                            missingQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetDetails(e, 1).empty() && !qWhInfo->GetDetails().empty() && strcmp(qWhInfo->GetDetails(e, 1).c_str(), qWhInfo->GetDetails().c_str()) == 0)
+                        {
                             hasEngDetails++;
+                            engQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
+                        if (!qWhInfo->GetDetails(e, 1).empty() && !qWhInfo->GetDetails().empty())
+                        {
+                            if (hasNameTag(qWhInfo, "details", false, e, 1) && !hasNameTag(qWhInfo, "details"))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qWhInfo, "details", false, e, 1) && !hasRaceTag(qWhInfo, "details"))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qWhInfo, "details", false, e, 1) && !hasClassTag(qWhInfo, "details"))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         // Objective 1-4
                         if (!qWhInfo->GetObjective(0, e, 1).empty() && qWhInfo->GetObjective(0).empty())
+                        {
                             missingObjective1++;
+                            missingQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetObjective(0, e, 1).empty() && !qWhInfo->GetObjective(0).empty() && strcmp(qWhInfo->GetObjective(0, e, 1).c_str(), qWhInfo->GetObjective(0).c_str()) == 0)
+                        {
                             hasEngObjective1++;
+                            engQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qWhInfo->GetObjective(1, e, 1).empty() && qWhInfo->GetObjective(1).empty())
+                        {
                             missingObjective2++;
+                            missingQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetObjective(1, e, 1).empty() && !qWhInfo->GetObjective(1).empty() && strcmp(qWhInfo->GetObjective(1, e, 1).c_str(), qWhInfo->GetObjective(1).c_str()) == 0)
+                        {
                             hasEngObjective2++;
+                            engQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qWhInfo->GetObjective(2, e, 1).empty() && qWhInfo->GetObjective(2).empty())
+                        {
                             missingObjective3++;
+                            missingQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetObjective(2, e, 1).empty() && !qWhInfo->GetObjective(2).empty() && strcmp(qWhInfo->GetObjective(2, e, 1).c_str(), qWhInfo->GetObjective(2).c_str()) == 0)
+                        {
                             hasEngObjective3++;
+                            engQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qWhInfo->GetObjective(3, e, 1).empty() && qWhInfo->GetObjective(3).empty())
+                        {
                             missingObjective4++;
+                            missingQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         if (!qWhInfo->GetObjective(3, e, 1).empty() && !qWhInfo->GetObjective(3).empty() && strcmp(qWhInfo->GetObjective(3, e, 1).c_str(), qWhInfo->GetObjective(3).c_str()) == 0)
+                        {
                             hasEngObjective4++;
+                            engQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
+                        }
                         /*for (auto index = 0; index < 4; ++index)
                         {
                             if (!qDbInfo->GetObjective(index, e, 1).empty() && qDbInfo->GetObjective(index).empty())
@@ -2312,6 +2875,7 @@ int main(int argc, char* argv[])
                     if (hasLocales)
                     {
                         msg_delay("\n");
+                        msg_delay(">   Missing Title: %d \n", missingTitle);
                         msg_delay(">   Missing Objectives: %d \n", missingObjText);
                         msg_delay(">   Missing Details: %d \n", missingDetails);
                         msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
@@ -2319,6 +2883,8 @@ int main(int argc, char* argv[])
                         msg_delay(">   Missing EndText: %d \n", missingEndText);
                         msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
 
+                        if (hasEngTitle)
+                            msg_delay(">   English Title: %d \n", hasEngTitle);
                         if (hasEngObjText)
                             msg_delay(">   English Objectives: %d \n", hasEngObjText);
                         if (hasEngDetails)
@@ -2329,6 +2895,22 @@ int main(int argc, char* argv[])
                             msg_delay(">   English OfferRewardText: %d \n", hasEngOfferText);
                         if (hasEngEndText)
                             msg_delay(">   English EndText: %d \n", hasEngEndText);
+
+                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                        {
+                            if (missingNameTag)
+                                msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
+                            if (missingRaceTag)
+                                msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
+                            if (missingClassTag)
+                                msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
+                        }
+
+                        // write stats to file
+                        writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                        writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                            writeToFile(missingTags.c_str(), "missingTags", filesLocation);
                     }
                 }
                 msg_delay("\n");
@@ -2395,7 +2977,9 @@ int main(int argc, char* argv[])
                         continue;
 
                     int trCount = 0;
-                    DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                 " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                 " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
                     msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
                     if (locale && trCount == 0)
                     {
@@ -2407,7 +2991,7 @@ int main(int argc, char* argv[])
                 //delete DbConnect;
             }
 
-            msg_delay("> DB: Analyzing data... \n");
+            msg_delay("\n> DB: Analyzing data... \n");
 
             for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
             {
@@ -2452,12 +3036,15 @@ int main(int argc, char* argv[])
 
                 msg_delay(">  loaded: %d quests \n", counter);
 
-                msg_delay("> DB: Checking missing data... \n");
+                msg_delay("\n> DB: Checking missing data... \n");
                 for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
                 {
                     if (locale && locale != i)
                         continue;
 
+                    uint32 missingQuests = 0;
+
+                    uint32 missingTitle = 0;
                     uint32 missingEndText = 0;
                     uint32 missingObjText = 0;
                     uint32 missingReqText = 0;
@@ -2469,6 +3056,7 @@ int main(int argc, char* argv[])
                     uint32 missingObjective4 = 0;
 
                     // has english text
+                    uint32 hasEngTitle = 0;
                     uint32 hasEngEndText = 0;
                     uint32 hasEngObjText = 0;
                     uint32 hasEngReqText = 0;
@@ -2479,33 +3067,21 @@ int main(int argc, char* argv[])
                     uint32 hasEngObjective3 = 0;
                     uint32 hasEngObjective4 = 0;
 
-                    /*uint32  missingEndText[2],
-                            missingObjText[2],
-                            missingReqText[2],
-                            missingOfferText[2],
-                            missingRaceTag[2],
-                            missingClassTag[2],
-                            missingDetails[2],
-                            missingObjective[2][4];
+                    // wildcards
+                    uint32 missingClassTag = 0;
+                    uint32 missingRaceTag = 0;
+                    uint32 missingNameTag = 0;
 
-                    for (auto d = 0; d < 4; ++d)
-                    {
-                        missingEndText[d] = 0;
-                        missingObjText[d] = 0;
-                        missingReqText[d] = 0;
-                        missingOfferText[d] = 0;
-                        missingDetails[d] = 0;
-                        missingRaceTag[d] = 0;
-                        missingClassTag[d] = 0;
-                        *//*missingObjective[d][0] = 0;
-                        missingObjective[d][1] = 0;
-                        missingObjective[d][2] = 0;
-                        missingObjective[d][3] = 0;*//*
-                        *//*for (auto obj = 0; obj < 4; ++obj)
-                        {
-                            missingObjective[d][obj] = 0;
-                        }*//*
-                    }*/
+                    // write statistics details
+                    std::string filesLocation = "stats/db/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    writeToFile("-- DB Locales Stats\n", "missingQuestText", filesLocation);
+                    writeToFile("-- DB Locales Stats\n", "engQuestText", filesLocation);
+                    writeToFile("-- DB Locales Stats\n", "missingTags", filesLocation);
+                    std::string missingQuestText;
+                    std::string engQuestText;
+                    std::string missingTags;
+
                     bool hasLocales = false;
                     msg_delay("\n>  %s \n", localeName(i).c_str());
                     counter = 0;
@@ -2515,9 +3091,12 @@ int main(int argc, char* argv[])
                         if (!qDbInfo)
                             continue;
 
-                        // skip if locale is missing
-                        if (qDbInfo->GetTitle(e, i).empty() && qDbInfo->GetDetails(e, i).empty())
+                        // skip if locale is missing (not sure if need)
+                        if (qDbInfo->GetTitle(e, i).empty() && qDbInfo->GetDetails(e, i).empty() && qDbInfo->GetObjective(e, i).empty() && qDbInfo->GetRequestItemText(e, i).empty() && qDbInfo->GetOfferRewardText(e, i).empty() && qDbInfo->GetEndText(e, i).empty())
+                        {
+                            missingQuests++;
                             continue;
+                        }
 
                         hasLocales = true;
                         counter++;
@@ -2537,51 +3116,207 @@ int main(int argc, char* argv[])
                         //msg_nodelay(".");
 
                         // check if missing texts
+                        if (!qDbInfo->GetTitle(e, 1).empty() && qDbInfo->GetTitle().empty())
+                        {
+                            missingTitle++;
+                            missingQuestText += "title:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetTitle(e, 1).empty() && !qDbInfo->GetTitle().empty() && strcmp(qDbInfo->GetTitle(e, 1).c_str(), qDbInfo->GetTitle().c_str()) == 0)
+                        {
+                            hasEngTitle++;
+                            engQuestText += "title:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+
                         if (!qDbInfo->GetEndText(e, 1).empty() && qDbInfo->GetEndText().empty())
+                        {
                             missingEndText++;
+                            missingQuestText += "endText:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetEndText(e, 1).empty() && !qDbInfo->GetEndText().empty() && strcmp(qDbInfo->GetEndText(e, 1).c_str(), qDbInfo->GetEndText().c_str()) == 0)
+                        {
                             hasEngEndText++;
+                            engQuestText += "endText:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetEndText(e, 1).empty() && !qDbInfo->GetEndText().empty())
+                        {
+                            if (hasNameTag(qDbInfo, "endText", true, e, 1) && !hasNameTag(qDbInfo, "endText", true))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qDbInfo, "endText", true, e, 1) && !hasRaceTag(qDbInfo, "endText", true))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qDbInfo, "endText", true, e, 1) && !hasClassTag(qDbInfo, "endText", true))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qDbInfo->GetObjectives(e, 1).empty() && qDbInfo->GetObjectives().empty())
+                        {
                             missingObjText++;
+                            missingQuestText += "objective:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+
                         if (!qDbInfo->GetObjectives(e, 1).empty() && !qDbInfo->GetObjectives().empty() && strcmp(qDbInfo->GetObjectives(e, 1).c_str(), qDbInfo->GetObjectives().c_str()) == 0)
+                        {
                             hasEngObjText++;
+                            engQuestText += "objective:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetObjectives(e, 1).empty() && !qDbInfo->GetObjectives().empty())
+                        {
+                            if (hasNameTag(qDbInfo, "objectives", true, e, 1) && !hasNameTag(qDbInfo, "objectives", true))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qDbInfo, "objectives", true, e, 1) && !hasRaceTag(qDbInfo, "objectives", true))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qDbInfo, "objectives", true, e, 1) && !hasClassTag(qDbInfo, "objectives", true))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qDbInfo->GetRequestItemText(e, 1).empty() && qDbInfo->GetRequestItemText().empty())
+                        {
                             missingReqText++;
+                            missingQuestText += "reqItem:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetRequestItemText(e, 1).empty() && !qDbInfo->GetRequestItemText().empty() && strcmp(qDbInfo->GetRequestItemText(e, 1).c_str(), qDbInfo->GetRequestItemText().c_str()) == 0)
+                        {
                             hasEngReqText++;
+                            engQuestText += "reqItem:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetRequestItemText(e, 1).empty() && !qDbInfo->GetRequestItemText().empty())
+                        {
+                            if (hasNameTag(qDbInfo, "requestItemText", true, e, 1) && !hasNameTag(qDbInfo, "requestItemText", true))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qDbInfo, "requestItemText", true, e, 1) && !hasRaceTag(qDbInfo, "requestItemText", true))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qDbInfo, "requestItemText", true, e, 1) && !hasClassTag(qDbInfo, "requestItemText", true))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qDbInfo->GetOfferRewardText(e, 1).empty() && qDbInfo->GetOfferRewardText().empty())
+                        {
                             missingOfferText++;
+                            missingQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetOfferRewardText(e, 1).empty() && !qDbInfo->GetOfferRewardText().empty() && strcmp(qDbInfo->GetOfferRewardText(e, 1).c_str(), qDbInfo->GetOfferRewardText().c_str()) == 0)
+                        {
                             hasEngOfferText++;
+                            engQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetOfferRewardText(e, 1).empty() && !qDbInfo->GetOfferRewardText().empty())
+                        {
+                            if (hasNameTag(qDbInfo, "offerRewardText", true, e, 1) && !hasNameTag(qDbInfo, "offerRewardText", true))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qDbInfo, "offerRewardText", true, e, 1) && !hasRaceTag(qDbInfo, "offerRewardText", true))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qDbInfo, "offerRewardText", true, e, 1) && !hasClassTag(qDbInfo, "offerRewardText", true))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         if (!qDbInfo->GetDetails(e, 1).empty() && qDbInfo->GetDetails().empty())
+                        {
                             missingDetails++;
+                            missingQuestText += "details:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetDetails(e, 1).empty() && !qDbInfo->GetDetails().empty() && strcmp(qDbInfo->GetDetails(e, 1).c_str(), qDbInfo->GetDetails().c_str()) == 0)
+                        {
                             hasEngDetails++;
+                            engQuestText += "details:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
+                        if (!qDbInfo->GetDetails(e, 1).empty() && !qDbInfo->GetDetails().empty())
+                        {
+                            if (hasNameTag(qDbInfo, "details", true, e, 1) && !hasNameTag(qDbInfo, "details", true))
+                            {
+                                missingNameTag++;
+                                missingTags += "name:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasRaceTag(qDbInfo, "details", true, e, 1) && !hasRaceTag(qDbInfo, "details", true))
+                            {
+                                missingRaceTag++;
+                                missingTags += "race:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                            if (hasClassTag(qDbInfo, "details", true, e, 1) && !hasClassTag(qDbInfo, "details", true))
+                            {
+                                missingClassTag++;
+                                missingTags += "class:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                            }
+                        }
 
                         // Objective 1-4
                         if (!qDbInfo->GetObjective(0, e, 1).empty() && qDbInfo->GetObjective(0).empty())
+                        {
                             missingObjective1++;
+                            missingQuestText += "obj1:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetObjective(0, e, 1).empty() && !qDbInfo->GetObjective(0).empty() && strcmp(qDbInfo->GetObjective(0, e, 1).c_str(), qDbInfo->GetObjective(0).c_str()) == 0)
+                        {
                             hasEngObjective1++;
+                            engQuestText += "obj1:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qDbInfo->GetObjective(1, e, 1).empty() && qDbInfo->GetObjective(1).empty())
+                        {
                             missingObjective2++;
+                            missingQuestText += "obj2:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetObjective(1, e, 1).empty() && !qDbInfo->GetObjective(1).empty() && strcmp(qDbInfo->GetObjective(1, e, 1).c_str(), qDbInfo->GetObjective(1).c_str()) == 0)
+                        {
                             hasEngObjective2++;
+                            engQuestText += "obj2:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qDbInfo->GetObjective(2, e, 1).empty() && qDbInfo->GetObjective(2).empty())
+                        {
                             missingObjective3++;
+                            missingQuestText += "obj3:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetObjective(2, e, 1).empty() && !qDbInfo->GetObjective(2).empty() && strcmp(qDbInfo->GetObjective(2, e, 1).c_str(), qDbInfo->GetObjective(2).c_str()) == 0)
+                        {
                             hasEngObjective3++;
+                            engQuestText += "obj3:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
 
                         if (!qDbInfo->GetObjective(3, e, 1).empty() && qDbInfo->GetObjective(3).empty())
+                        {
                             missingObjective4++;
+                            missingQuestText += "obj4:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         if (!qDbInfo->GetObjective(3, e, 1).empty() && !qDbInfo->GetObjective(3).empty() && strcmp(qDbInfo->GetObjective(3, e, 1).c_str(), qDbInfo->GetObjective(3).c_str()) == 0)
+                        {
                             hasEngObjective4++;
+                            engQuestText += "obj4:" + std::to_string(qDbInfo->GetEntry()) + "\n";
+                        }
                         /*for (auto index = 0; index < 4; ++index)
                         {
                             if (!qDbInfo->GetObjective(index, e, 1).empty() && qDbInfo->GetObjective(index).empty())
@@ -2589,9 +3324,12 @@ int main(int argc, char* argv[])
                         }*/
                     }
 
+                    msg_delay(">  processed: %d %s quests \n", counter, localeName(i).c_str());
+
                     if (hasLocales)
                     {
                         msg_delay("\n");
+                        msg_delay(">   Missing Title: %d \n", missingTitle);
                         msg_delay(">   Missing Objectives: %d \n", missingObjText);
                         msg_delay(">   Missing Details: %d \n", missingDetails);
                         msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
@@ -2599,6 +3337,8 @@ int main(int argc, char* argv[])
                         msg_delay(">   Missing EndText: %d \n", missingEndText);
                         msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
 
+                        if (hasEngTitle)
+                            msg_delay(">   English Title: %d \n", hasEngTitle);
                         if (hasEngObjText)
                             msg_delay(">   English Objectives: %d \n", hasEngObjText);
                         if (hasEngDetails)
@@ -2609,7 +3349,28 @@ int main(int argc, char* argv[])
                             msg_delay(">   English OfferRewardText: %d \n", hasEngOfferText);
                         if (hasEngEndText)
                             msg_delay(">   English EndText: %d \n", hasEngEndText);
+
+                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                        {
+                            if (missingNameTag)
+                                msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
+                            if (missingRaceTag)
+                                msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
+                            if (missingClassTag)
+                                msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
+                        }
+
+                        if (missingQuests)
+                            msg_delay("\n>   Missing Quests Locales: %d \n", missingQuests);
+
+                        // write stats to file
+                        writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                        writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                            writeToFile(missingTags.c_str(), "missingTags", filesLocation);
                     }
+                    else
+                        msg_delay(">   Missing Quests: %d \n", missingQuests);
                 }
             }
             return 1;
@@ -2635,9 +3396,9 @@ int main(int argc, char* argv[])
             std::cin >> locale;
 
             std::cout << "\nSelect Action: \n";
-            std::cout << "1) Add missing English texts (auto) \n";
-            std::cout << "2) Add missing locale texts without name/class/gender tags (auto) \n";
-            std::cout << "3) TODO \n";
+            std::cout << "1) Add missing English texts (BUGGY DONT USE)\n";
+            std::cout << "2) Add missing locale texts (adds $r $c $n where possible, TODO: manual fix of missing Name tags) \n";
+            std::cout << "3) Fix $n, $c, $r wildcards e.g. |3-6(жрец), <nom> etc \n";
             std::cout << "4) TODO \n";
             std::cin >> action;
 
@@ -2732,6 +3493,7 @@ int main(int argc, char* argv[])
 
                     msg_delay("\n>  %s \n", localeName(1).c_str());
 
+                    uint32 missingTitle = 0;
                     uint32 missingEndText = 0;
                     uint32 missingObjText = 0;
                     uint32 missingReqText = 0;
@@ -2783,6 +3545,12 @@ int main(int argc, char* argv[])
                                 msg_delay_set(".", 10);
 
                             // check if missing texts
+                            if (!qWhInfo->GetTitle().empty() && qDbInfo->GetTitle().empty())
+                            {
+                                missingTitle++;
+                                updateQueries += updateQuestFromWhQuery(qWhInfo, qDbInfo, "title", 1, 1) + "\n";
+                            }
+
                             if (!qWhInfo->GetEndText().empty() && qDbInfo->GetEndText().empty())
                             {
                                 missingEndText++;
@@ -2846,6 +3614,7 @@ int main(int argc, char* argv[])
                     if (missingDbQuest)
                         msg_delay(">   Missing Quests in DB: %d \n\n", missingDbQuest);
 
+                    msg_delay(">   Missing Title: %d \n", missingTitle);
                     msg_delay(">   Missing Objectives: %d \n", missingObjText);
                     msg_delay(">   Missing Details: %d \n", missingDetails);
                     msg_delay(">   Missing RequestItemText: %d \n", missingReqText);
@@ -2857,6 +3626,549 @@ int main(int argc, char* argv[])
                     writeToFile(updateQueries.c_str(), "missingEngTexts", filesLocation);
                 }
                 // ACTION 1 END
+                return 1;
+            }
+            // Auto add missing translations
+            if (action == 2)
+            {
+                // print wh cache stats
+                msg_delay("\n");
+                msg_delay("> WH: \n");
+
+                int maxQuestId[MAX_EXPANSION];
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+                    for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
+                    {
+                        if (locale && locale != i && i != 1)
+                            continue;
+
+                        std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
+                        if (!std::filesystem::is_directory(cacheLocation))
+                        {
+                            msg_delay(">  %s %d \n", localeName(i).c_str(), 0);
+                            continue;
+                        }
+
+                        auto counter = 0;
+                        auto dirIter = std::filesystem::directory_iterator(cacheLocation);
+                        for (auto& fl : dirIter)
+                        {
+                            if (fl.is_regular_file())
+                            {
+                                ++counter;
+                                const std::filesystem::path& p(fl.path());
+                                uint32 qID = stoi(p.stem().string());
+                                if ((int)qID > maxQuestId[e - 1])
+                                    maxQuestId[e - 1] = (int)qID;
+                            }
+                        }
+                        msg_delay(">  %s total: %d, max id: %d \n", localeName(i).c_str(), counter, maxQuestId[e - 1]);
+                    }
+                }
+
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                // print db data
+                msg_delay("\n");
+                msg_delay("> DB: \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    auto DbConnect = sDataMgr.GetCon(e);
+                    if (!DbConnect || !DbConnect->IsConnected())
+                    {
+                        msg_delay("> DB: Failed to connect! \n");
+                        //delete DbConnect;
+                        return 0;
+                    }
+
+                    int counter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", counter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(1).c_str(), counter, maxQuestId[e - 1]);
+
+                    msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+
+                    for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                    {
+                        if (locale && locale != i)
+                            continue;
+
+                        int trCount = 0;
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                        msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                        if (locale && trCount == 0)
+                        {
+                            msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
+                            return 0;
+                        }
+                    }
+                }
+
+                // do action
+                msg_delay("\n");
+
+                msg_delay("> Starting... \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    //if (counter > limit)
+                    //    break;
+                    //msg_delay("> %s \n", expansionName(e).c_str());
+                    //msg_delay("> WH: Analyzing... \n");
+                    uint32 counter = 0;
+
+                    msg_delay("\n>  %s \n", localeName(locale).c_str());
+
+                    uint32 missingTitle = 0;
+                    uint32 missingEndText = 0;
+                    uint32 missingObjText = 0;
+                    uint32 missingReqText = 0;
+                    uint32 missingOfferText = 0;
+                    uint32 missingDetails = 0;
+                    uint32 missingObjective1 = 0;
+                    uint32 missingObjective2 = 0;
+                    uint32 missingObjective3 = 0;
+                    uint32 missingObjective4 = 0;
+
+                    uint32 missingDbQuest = 0; // wh exist, db not exist
+
+                    std::string cacheEngLocation = "cache/" + expansionName(e) + "/" + localeName(1) + "/quest/";
+                    std::string cacheLocLocation = "cache/" + expansionName(e) + "/" + localeName(locale) + "/quest/";
+                    if (!std::filesystem::is_directory(cacheEngLocation))
+                        continue;
+                    if (!std::filesystem::is_directory(cacheLocLocation))
+                        continue;
+
+                    // read existing update file
+                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    writeToFile("-- QUERIES GO BELOW\n", "missingLocales", filesLocation);
+                    std::string updateQueries;
+
+                    // write command
+                    // writeToFile(wh_page.c_str(), std::to_string(id), cacheLocation);
+
+                    auto dirIter = std::filesystem::directory_iterator(cacheLocLocation);
+                    for (auto &fl: dirIter)
+                    {
+                        if (fl.is_regular_file())
+                        {
+                            const std::filesystem::path &p(fl.path());
+                            uint32 qID = stoi(p.stem().string());
+
+                            // load both eng and locale
+                            WowheadQuestInfo* qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                            if (!qWhEngInfo)
+                                continue;
+                            WowheadQuestInfo* qWhLocInfo = LoadWowheadQuestInfo(qID, e, locale, true);
+                            if (!qWhLocInfo)
+                                continue;
+
+                            // load english first
+                            DatabaseQuestInfo* qDbLocInfo = LoadDatabaseQuestInfo(qID, e, 1, true, true);
+                            if (!qDbLocInfo)
+                            {
+                                missingDbQuest++;
+                                continue;
+                            }
+                            qDbLocInfo = LoadDatabaseQuestInfo(qID, e, locale, true, true);
+                            if (!qDbLocInfo)
+                                continue;
+
+                            counter++;
+                            if ((counter % 1000) == 0)
+                                msg_delay_set(std::to_string(counter), 10);
+                            else if ((counter % 100) == 0)
+                                msg_delay_set(".", 10);
+
+                            // use database english as proof that text should exist
+                            // TODO fix wowhead parsing of quests that have no details
+
+                            if (!qDbLocInfo->GetTitle(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetTitle().empty() && qDbLocInfo->GetTitle().empty())
+                                {
+                                    if (qWhLocInfo->GetTitle(e, 1) == qWhLocInfo->GetTitle())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingTitle++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "title", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetEndText(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetEndText().empty() && qDbLocInfo->GetEndText().empty())
+                                {
+                                    if (qWhLocInfo->GetEndText(e, 1) == qWhLocInfo->GetEndText())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingEndText++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "endText", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjectives(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetObjectives().empty() && qDbLocInfo->GetObjectives().empty())
+                                {
+                                    if (qWhLocInfo->GetObjectives(e, 1) == qWhLocInfo->GetObjectives())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        missingObjText++;
+                                        msg_nodelay("v", qID);
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetRequestItemText(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetRequestItemText().empty() && qDbLocInfo->GetRequestItemText().empty())
+                                {
+                                    if (qWhLocInfo->GetRequestItemText(e, 1) == qWhLocInfo->GetRequestItemText())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        missingReqText++;
+                                        msg_nodelay("v", qID);
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "requestItemText", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetOfferRewardText(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetOfferRewardText().empty() && qDbLocInfo->GetOfferRewardText().empty())
+                                {
+                                    if (qWhLocInfo->GetOfferRewardText(e, 1) == qWhLocInfo->GetOfferRewardText())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingOfferText++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "offerRewardText", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetDetails(e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetDetails().empty() && qDbLocInfo->GetDetails().empty())
+                                {
+                                    if (qWhLocInfo->GetDetails(e, 1) == qWhLocInfo->GetDetails())
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingDetails++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "details", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            // Objective 1-4
+                            if (!qDbLocInfo->GetObjective(0, e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetObjective(0).empty() && qDbLocInfo->GetObjective(0).empty())
+                                {
+                                    if (qWhLocInfo->GetObjective(0, e, 1) == qWhLocInfo->GetObjective(0))
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingObjective1++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText1", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(1, e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetObjective(1).empty() && qDbLocInfo->GetObjective(1).empty())
+                                {
+                                    if (qWhLocInfo->GetObjective(1, e, 1) == qWhLocInfo->GetObjective(1))
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingObjective2++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText2", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(2, e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetObjective(2).empty() && qDbLocInfo->GetObjective(2).empty())
+                                {
+                                    if (qWhLocInfo->GetObjective(2, e, 1) == qWhLocInfo->GetObjective(2))
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingObjective3++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText3", e, locale) + "\n";
+                                    }
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(3, e, 1).empty())
+                            {
+                                if (!qWhLocInfo->GetObjective(3).empty() && qDbLocInfo->GetObjective(3).empty())
+                                {
+                                    if (qWhLocInfo->GetObjective(3, e, 1) == qWhLocInfo->GetObjective(3))
+                                        msg_nodelay("x", qID);
+                                    else
+                                    {
+                                        msg_nodelay("v", qID);
+                                        missingObjective4++;
+                                        updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText4", e, locale) + "\n";
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // print results
+                    msg_delay("\n\n");
+
+                    if (missingDbQuest)
+                        msg_delay(">   Missing Quests in DB: %d \n\n", missingDbQuest);
+
+                    msg_delay(">   Added Title: %d \n", missingTitle);
+                    msg_delay(">   Added Objectives: %d \n", missingObjText);
+                    msg_delay(">   Added Details: %d \n", missingDetails);
+                    msg_delay(">   Added RequestItemText: %d \n", missingReqText);
+                    msg_delay(">   Added OfferRewardText: %d \n", missingOfferText);
+                    msg_delay(">   Added EndText: %d \n", missingEndText);
+                    msg_delay(">   Added Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
+
+                    // write queries to file
+                    writeToFile(updateQueries.c_str(), "missingLocales", filesLocation);
+                }
+                // ACTION 2 END
+                return 1;
+            }
+            if (action == 3)
+            {
+                int maxQuestId[MAX_EXPANSION];
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                // print db data
+                msg_delay("\n");
+                msg_delay("> DB: \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    auto DbConnect = sDataMgr.GetCon(e);
+                    if (!DbConnect || !DbConnect->IsConnected())
+                    {
+                        msg_delay("> DB: Failed to connect! \n");
+                        //delete DbConnect;
+                        return 0;
+                    }
+
+                    int counter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", counter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(1).c_str(), counter, maxQuestId[e - 1]);
+
+                    msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+
+                    for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                    {
+                        if (locale && locale != i)
+                            continue;
+
+                        int trCount = 0;
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                        msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                        if (locale && trCount == 0)
+                        {
+                            msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
+                            return 0;
+                        }
+                    }
+                }
+
+                // do action
+                msg_delay("\n");
+
+                msg_delay("> Starting... \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    msg_delay("> DB: Fixing wildcards... \n");
+
+                    // read existing update file
+                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
+                    std::string updateQueries;
+                    uint32 addedNameTags = 0;
+                    uint32 addedClassTags = 0;
+                    uint32 addedRaceTags = 0;
+
+                    uint32 counter = 0;
+                    for (auto d = 1; d <= maxQuestId[e - 1]; ++d)
+                    {
+                        DatabaseQuestInfo* qDbInfo = LoadDatabaseQuestInfo(d, e, locale, true, true);
+                        if (!qDbInfo || !qDbInfo->IsLoaded(e, locale))
+                        {
+                            //msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                            continue;
+                        }
+                        else
+                        {
+                            counter++;
+                            //msg_nodelay(".");// msg_delay_set(".", 50);
+                            if ((counter % 1000) == 0)
+                                msg_nodelay(std::to_string(counter));
+                            else if ((counter % 100) == 0)
+                                msg_nodelay(".");
+
+                            // logic goes here
+
+                            // Name
+                            std::string details = qDbInfo->GetDetails();
+                            std::string offer = qDbInfo->GetOfferRewardText();
+                            std::string req = qDbInfo->GetRequestItemText();
+                            if (hasNameTag(qDbInfo, "details", false, e, locale))
+                            {
+                                std::string replace = details;
+                                replaceNameTag(details, locale);
+                                if (replace != details)
+                                    addedNameTags++;
+                            }
+                            if (hasNameTag(qDbInfo, "offerRewardText", false, e, locale))
+                            {
+                                std::string replace = offer;
+                                replaceNameTag(offer, locale);
+                                if (replace != offer)
+                                    addedNameTags++;
+                            }
+                            if (hasNameTag(qDbInfo, "requestItemText", false, e, locale))
+                            {
+                                std::string replace = req;
+                                replaceNameTag(req, locale);
+                                if (replace != req)
+                                    addedNameTags++;
+                            }
+
+                            // Race
+                            if (hasRaceTag(qDbInfo, "details", false, e, locale))
+                            {
+                                std::string replace = details;
+                                replaceRaceTag(details, locale);
+                                if (replace != details)
+                                    addedRaceTags++;
+                            }
+                            if (hasRaceTag(qDbInfo, "offerRewardText", false, e, locale))
+                            {
+                                std::string replace = offer;
+                                replaceRaceTag(offer, locale);
+                                if (replace != offer)
+                                    addedRaceTags++;
+                            }
+                            if (hasRaceTag(qDbInfo, "requestItemText", false, e, locale))
+                            {
+                                std::string replace = req;
+                                replaceRaceTag(req, locale);
+                                if (replace != req)
+                                    addedRaceTags++;
+                            }
+
+                            // Class
+                            if (hasClassTag(qDbInfo, "details", false, e, locale))
+                            {
+                                std::string replace = details;
+                                replaceClassTag(details, locale);
+                                if (replace != details)
+                                    addedClassTags++;
+                            }
+                            if (hasClassTag(qDbInfo, "offerRewardText", false, e, locale))
+                            {
+                                std::string replace = offer;
+                                replaceClassTag(offer, locale);
+                                if (replace != offer)
+                                    addedClassTags++;
+                            }
+                            if (hasClassTag(qDbInfo, "requestItemText", false, e, locale))
+                            {
+                                std::string replace = req;
+                                replaceClassTag(req, locale);
+                                if (replace != req)
+                                    addedClassTags++;
+                            }
+
+                            // print queries if needed
+                            if (details != qDbInfo->GetDetails())
+                                updateQueries += updateQuestFromTextQueryNoTags(details, qDbInfo, "details", e, locale) + "\n";
+                            if (offer != qDbInfo->GetOfferRewardText())
+                                updateQueries += updateQuestFromTextQueryNoTags(offer, qDbInfo, "offerRewardText", e, locale) + "\n";
+                            if (req != qDbInfo->GetRequestItemText())
+                                updateQueries += updateQuestFromTextQueryNoTags(req, qDbInfo, "requestItemText", e, locale) + "\n";
+                        }
+
+
+                    }
+
+                    // print results
+                    msg_delay("\n\n");
+
+
+                    msg_delay(">   Added $N: %d \n", addedNameTags);
+                    msg_delay(">   Added $R: %d \n", addedRaceTags);
+                    msg_delay(">   Added $C: %d \n", addedClassTags);
+
+                    // write queries to file
+                    writeToFile(updateQueries.c_str(), "missingTags", filesLocation);
+                }
+                // ACTION 3 END
                 return 1;
             }
         }
@@ -3232,12 +4544,19 @@ void WowheadQuestInfo::LoadEntryData(uint32 expansion, uint32 locale)
 
 void DatabaseQuestInfo::LoadEntryData(uint32 expansion, uint32 locale)
 {
+    auto DbConnect = sDataMgr.GetCon(expansion);
+    if (DbConnect && DbConnect->IsConnected() && !DbConnect->IsEntryExistInDb(TYPE_QUEST, GetEntry()))
+        return;
+    // TODO More elegant way to skip missing quests
+
     QuestStrings qstr = LoadQuestDatabaseStrings(GetEntry(), expansion, locale);
-    if (!qstr.title.empty() || !qstr.details.empty())
+    /*if (!qstr.title.empty() || !qstr.details.empty())
     {
         SetQuestTexts(expansion, locale, qstr);
         SetLoaded(expansion, locale, true);
-    }
+    }*/
+    SetQuestTexts(expansion, locale, qstr);
+    SetLoaded(expansion, locale, true);
 }
 
 std::string QuestInfo::GetTitle(uint32 expansion, uint32 locale)

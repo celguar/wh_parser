@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <utility>
 #include <mysql/mysql.h>
+#include <regex>
 
 typedef std::int64_t int64;
 typedef std::int32_t int32;
@@ -101,6 +102,7 @@ public:
     void SetLoaded(uint32 expansion, uint32 locale, bool loaded) { isLoaded[expansion][locale] = loaded; }
     TypeId GetCacheType() { return typeId; };
     [[nodiscard]] uint32 GetEntry() const { return entry; }
+    EntrySource GetSource() { return source; }
 
 private:
     uint32 entry;
