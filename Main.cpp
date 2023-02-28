@@ -3397,7 +3397,7 @@ int main(int argc, char* argv[])
 
             std::cout << "\nSelect Action: \n";
             std::cout << "1) Add missing English texts (BUGGY DONT USE)\n";
-            std::cout << "2) Add missing locale texts (adds $r $c $n where possible, TODO: manual fix of missing Name tags) \n";
+            std::cout << "2) Add missing locale texts TODO: manual fix of missing Name tags \n";
             std::cout << "3) Fix $n, $c, $r wildcards e.g. |3-6(жрец), <nom> etc \n";
             std::cout << "4) TODO \n";
             std::cin >> action;
