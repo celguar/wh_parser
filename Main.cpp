@@ -3718,7 +3718,7 @@ int main(int argc, char* argv[])
                         if (locale && trCount == 0)
                         {
                             msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
-                            return 0;
+                            //return 0;
                         }
                     }
                 }
