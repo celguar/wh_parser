@@ -297,7 +297,7 @@ void replaceNewLine(std::string& theText)
     theText = std::regex_replace(theText, re, "$B");
 }
 
-void replaceNameTag(std::string& theText, uint32 locale = 0)
+void replaceNameTag(std::string& theText, uint32 expansion, uint32 locale)
 {
     std::vector<std::string> nameTagsUp;
     nameTagsUp.emplace_back("<Name>");
@@ -319,20 +319,35 @@ void replaceNameTag(std::string& theText, uint32 locale = 0)
     for (const auto& name : nameTagsLow)
     {
         const std::regex re(name);
-        theText = std::regex_replace(theText, re, "$N");
+        theText = std::regex_replace(theText, re, "$n");
     }
 
     // find buggy russian tags
+    // classic RU does not support declination
     if (locale == 7)
     {
-        const std::regex re1(R"(\|\d-\d\(\$N\))");
-        theText = std::regex_replace(theText, re1, "$N");
-        const std::regex re2(R"(\|\d-\d\(\$n\))");
-        theText = std::regex_replace(theText, re2, "$N");
+        if (expansion == 1)
+        {
+            const std::regex re1(R"(\|\d-\d\(\$N\))");
+            theText = std::regex_replace(theText, re1, "$N");
+            const std::regex re2(R"(\|\d-\d\(\$n\))");
+            theText = std::regex_replace(theText, re2, "$n");
+            const std::regex re3(R"(\|\d-\d\(\$N(?!\)))");
+            theText = std::regex_replace(theText, re3, "$N");
+            const std::regex re4(R"(\|\d-\d\(\$n(?!\)))");
+            theText = std::regex_replace(theText, re4, "$n");
+        }
+        else
+        {
+            const std::regex re3(R"(\|\d-\d\(\$N(?!\)))");
+            theText = std::regex_replace(theText, re3, "|$1-$2($N)");
+            const std::regex re4(R"(\|\d-\d\(\$n(?!\)))");
+            theText = std::regex_replace(theText, re4, "|$1-$2($n)");
+        }
     }
 }
 
-void replaceRaceTag(std::string& theText, uint32 locale = 0)
+void replaceRaceTag(std::string& theText, uint32 expansion, uint32 locale)
 {
     std::vector<std::string> nameTagsUp;
     nameTagsUp.emplace_back("<Race>");
@@ -352,58 +367,75 @@ void replaceRaceTag(std::string& theText, uint32 locale = 0)
     for (const auto& name : nameTagsLow)
     {
         const std::regex re(name);
-        theText = std::regex_replace(theText, re, "$R");
+        theText = std::regex_replace(theText, re, "$r");
     }
 
     if (locale == 7)
     {
-        std::vector<std::string> posClasses;
-        posClasses.emplace_back("человек");
-        posClasses.emplace_back("орк");
-        posClasses.emplace_back("нежить");
-        posClasses.emplace_back("таурен");
-        posClasses.emplace_back("гном");
-        posClasses.emplace_back("дворф");
-        posClasses.emplace_back("тролль");
-        posClasses.emplace_back("ночной эльф");
-        posClasses.emplace_back("дреней");
-        posClasses.emplace_back("эльф крови");
-        posClasses.emplace_back("Человек");
-        posClasses.emplace_back("Орк");
-        posClasses.emplace_back("Нежить");
-        posClasses.emplace_back("Таурен");
-        posClasses.emplace_back("Гном");
-        posClasses.emplace_back("Дворф");
-        posClasses.emplace_back("Тролль");
-        posClasses.emplace_back("Ночной эльф");
-        posClasses.emplace_back("Дреней");
-        posClasses.emplace_back("Эльф крови");
+        std::vector<std::string> posClassesLow;
+        std::vector<std::string> posClassesUp;
+        posClassesLow.emplace_back("человек");
+        posClassesLow.emplace_back("орк");
+        posClassesLow.emplace_back("нежить");
+        posClassesLow.emplace_back("таурен");
+        posClassesLow.emplace_back("гном");
+        posClassesLow.emplace_back("дворф");
+        posClassesLow.emplace_back("тролль");
+        posClassesLow.emplace_back("ночной эльф");
+        posClassesLow.emplace_back("дреней");
+        posClassesLow.emplace_back("эльф крови");
+        posClassesUp.emplace_back("Человек");
+        posClassesUp.emplace_back("Орк");
+        posClassesUp.emplace_back("Нежить");
+        posClassesUp.emplace_back("Таурен");
+        posClassesUp.emplace_back("Гном");
+        posClassesUp.emplace_back("Дворф");
+        posClassesUp.emplace_back("Тролль");
+        posClassesUp.emplace_back("Ночной эльф");
+        posClassesUp.emplace_back("Дреней");
+        posClassesUp.emplace_back("Эльф крови");
 
-        for (const auto& className : posClasses)
+        // classic RU does not support declination
+        for (const auto& className : posClassesLow)
         {
-            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
-            theText = std::regex_replace(theText, re, "$R");
+            const std::regex re("\\|(\\d)-(\\d)\\(" + className + "\\)");
+            if (expansion == 1)
+                theText = std::regex_replace(theText, re, "$r");
+            else
+                theText = std::regex_replace(theText, re, "|$1-$2($r)");
         }
 
-        for (auto className : posClasses)
+        for (const auto& className : posClassesUp)
         {
-            className[0] = toupper(className[0]);
-            const std::regex re("\\|\\d-\\d\\(" + className + "\\)");
-            theText = std::regex_replace(theText, re, "$R");
+            const std::regex re("\\|(\\d)-(\\d)\\(" + className + "\\)");
+            if (expansion == 1)
+                theText = std::regex_replace(theText, re, "$R");
+            else
+                theText = std::regex_replace(theText, re, "|$1-$2($R)");
         }
 
-        const std::regex re1(R"(\|\d-\d\(\$R\))");
-        theText = std::regex_replace(theText, re1, "$R");
-        const std::regex re2(R"(\|\d-\d\(\$r\))");
-        theText = std::regex_replace(theText, re2, "$R");
-        const std::regex re3(R"(\|\d-\d\(\$R)");
-        theText = std::regex_replace(theText, re3, "$R");
-        const std::regex re4(R"(\|\d-\d\(\$r)");
-        theText = std::regex_replace(theText, re4, "$R");
+        if (expansion == 1)
+        {
+            const std::regex re1(R"(\|\d-\d\(\$R\))");
+            theText = std::regex_replace(theText, re1, "$R");
+            const std::regex re2(R"(\|\d-\d\(\$r\))");
+            theText = std::regex_replace(theText, re2, "$r");
+            const std::regex re3(R"(\|\d-\d\(\$R(?!\)))");
+            theText = std::regex_replace(theText, re3, "$R");
+            const std::regex re4(R"(\|\d-\d\(\$r(?!\)))");
+            theText = std::regex_replace(theText, re4, "$r");
+        }
+        else
+        {
+            const std::regex re3(R"(\|(\d)-(\d)\(\$R(?!\)))");
+            theText = std::regex_replace(theText, re3, "|$1-$2($R)");
+            const std::regex re4(R"(\|(\d)-(\d)\(\$r(?!\)))");
+            theText = std::regex_replace(theText, re4, "|$1-$2($r)");
+        }
     }
 }
 
-void replaceClassTag(std::string& theText, uint32 locale = 0)
+void replaceClassTag(std::string& theText, uint32 expansion, uint32 locale)
 {
     std::vector<std::string> nameTagsUp;
     nameTagsUp.emplace_back("<Class>");
@@ -425,48 +457,72 @@ void replaceClassTag(std::string& theText, uint32 locale = 0)
     for (const auto& name : nameTagsLow)
     {
         const std::regex re(name);
-        theText = std::regex_replace(theText, re, "$C");
+        theText = std::regex_replace(theText, re, "$c");
     }
 
     if (locale == 7)
     {
-        std::vector<std::string> posClasses;
-        posClasses.emplace_back("чернокнижник");
-        posClasses.emplace_back("жрец");
-        posClasses.emplace_back("воин");
-        posClasses.emplace_back("друид");
-        posClasses.emplace_back("паладин");
-        posClasses.emplace_back("разбойник");
-        posClasses.emplace_back("шаман");
-        posClasses.emplace_back("маг");
-        posClasses.emplace_back("охотник");
-        posClasses.emplace_back("рыцарь смерти");
-        posClasses.emplace_back("Чернокнижник");
-        posClasses.emplace_back("Жрец");
-        posClasses.emplace_back("Воин");
-        posClasses.emplace_back("Друид");
-        posClasses.emplace_back("Паладин");
-        posClasses.emplace_back("Разбойник");
-        posClasses.emplace_back("Шаман");
-        posClasses.emplace_back("Маг");
-        posClasses.emplace_back("Охотник");
-        posClasses.emplace_back("Рыцарь смерти");
+        std::vector<std::string> posClassesLow;
+        std::vector<std::string> posClassesUp;
+        posClassesLow.emplace_back("чернокнижник");
+        posClassesLow.emplace_back("жрец");
+        posClassesLow.emplace_back("воин");
+        posClassesLow.emplace_back("друид");
+        posClassesLow.emplace_back("паладин");
+        posClassesLow.emplace_back("разбойник");
+        posClassesLow.emplace_back("шаман");
+        posClassesLow.emplace_back("маг");
+        posClassesLow.emplace_back("охотник");
+        posClassesLow.emplace_back("рыцарь смерти");
+        posClassesUp.emplace_back("Чернокнижник");
+        posClassesUp.emplace_back("Жрец");
+        posClassesUp.emplace_back("Воин");
+        posClassesUp.emplace_back("Друид");
+        posClassesUp.emplace_back("Паладин");
+        posClassesUp.emplace_back("Разбойник");
+        posClassesUp.emplace_back("Шаман");
+        posClassesUp.emplace_back("Маг");
+        posClassesUp.emplace_back("Охотник");
+        posClassesUp.emplace_back("Рыцарь смерти");
 
-        for (const auto& className : posClasses)
+        // classic RU does not support declination
+        for (const auto& className : posClassesLow)
         {
-            std::string rege = "\\|\\d-\\d\\(" + className + "\\)";
+            std::string rege = "\\|(\\d)-(\\d)\\(" + className + "\\)";
             const std::regex re(rege);
-            theText = std::regex_replace(theText, re, "$C");
+            if (expansion == 1)
+                theText = std::regex_replace(theText, re, "$c");
+            else
+                theText = std::regex_replace(theText, re, "|$1-$2($c)");
+        }
+        for (const auto& className : posClassesUp)
+        {
+            std::string rege = "\\|(\\d)-(\\d)\\(" + className + "\\)";
+            const std::regex re(rege);
+            if (expansion == 1)
+                theText = std::regex_replace(theText, re, "$C");
+            else
+                theText = std::regex_replace(theText, re, "|$1-$2($C)");
         }
 
-        const std::regex re1(R"(\|\d-\d\(\$C\))");
-        theText = std::regex_replace(theText, re1, "$C");
-        const std::regex re2(R"(\|\d-\d\(\$c\))");
-        theText = std::regex_replace(theText, re2, "$C");
-        const std::regex re3(R"(\|\d-\d\(\$C)");
-        theText = std::regex_replace(theText, re3, "$C");
-        const std::regex re4(R"(\|\d-\d\(\$c)");
-        theText = std::regex_replace(theText, re4, "$C");
+        if (expansion == 1)
+        {
+            const std::regex re1(R"(\|\d-\d\(\$C\))");
+            theText = std::regex_replace(theText, re1, "$C");
+            const std::regex re2(R"(\|\d-\d\(\$c\))");
+            theText = std::regex_replace(theText, re2, "$C");
+            const std::regex re3(R"(\|\d-\d\(\$C(?!\)))");
+            theText = std::regex_replace(theText, re3, "$C");
+            const std::regex re4(R"(\|\d-\d\(\$c(?!\)))");
+            theText = std::regex_replace(theText, re4, "$C");
+        }
+        else
+        {
+            const std::regex re3(R"(\|(\d)-(\d)\(\$C(?!\)))");
+            theText = std::regex_replace(theText, re3, "|$1-$2($C)");
+            const std::regex re4(R"(\|(\d)-(\d)\(\$c(?!\)))");
+            theText = std::regex_replace(theText, re4, "|$1-$2($c)");
+        }
     }
 }
 
@@ -4080,21 +4136,21 @@ int main(int argc, char* argv[])
                             if (hasNameTag(qDbInfo, "details", false, e, locale))
                             {
                                 std::string replace = details;
-                                replaceNameTag(details, locale);
+                                replaceNameTag(details, e, locale);
                                 if (replace != details)
                                     addedNameTags++;
                             }
                             if (hasNameTag(qDbInfo, "offerRewardText", false, e, locale))
                             {
                                 std::string replace = offer;
-                                replaceNameTag(offer, locale);
+                                replaceNameTag(offer, e, locale);
                                 if (replace != offer)
                                     addedNameTags++;
                             }
                             if (hasNameTag(qDbInfo, "requestItemText", false, e, locale))
                             {
                                 std::string replace = req;
-                                replaceNameTag(req, locale);
+                                replaceNameTag(req, e, locale);
                                 if (replace != req)
                                     addedNameTags++;
                             }
@@ -4103,21 +4159,21 @@ int main(int argc, char* argv[])
                             if (hasRaceTag(qDbInfo, "details", false, e, locale))
                             {
                                 std::string replace = details;
-                                replaceRaceTag(details, locale);
+                                replaceRaceTag(details, e, locale);
                                 if (replace != details)
                                     addedRaceTags++;
                             }
                             if (hasRaceTag(qDbInfo, "offerRewardText", false, e, locale))
                             {
                                 std::string replace = offer;
-                                replaceRaceTag(offer, locale);
+                                replaceRaceTag(offer, e, locale);
                                 if (replace != offer)
                                     addedRaceTags++;
                             }
                             if (hasRaceTag(qDbInfo, "requestItemText", false, e, locale))
                             {
                                 std::string replace = req;
-                                replaceRaceTag(req, locale);
+                                replaceRaceTag(req, e, locale);
                                 if (replace != req)
                                     addedRaceTags++;
                             }
@@ -4126,21 +4182,21 @@ int main(int argc, char* argv[])
                             if (hasClassTag(qDbInfo, "details", false, e, locale))
                             {
                                 std::string replace = details;
-                                replaceClassTag(details, locale);
+                                replaceClassTag(details, e, locale);
                                 if (replace != details)
                                     addedClassTags++;
                             }
                             if (hasClassTag(qDbInfo, "offerRewardText", false, e, locale))
                             {
                                 std::string replace = offer;
-                                replaceClassTag(offer, locale);
+                                replaceClassTag(offer, e, locale);
                                 if (replace != offer)
                                     addedClassTags++;
                             }
                             if (hasClassTag(qDbInfo, "requestItemText", false, e, locale))
                             {
                                 std::string replace = req;
-                                replaceClassTag(req, locale);
+                                replaceClassTag(req, e, locale);
                                 if (replace != req)
                                     addedClassTags++;
                             }
