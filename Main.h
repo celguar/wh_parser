@@ -23,7 +23,7 @@ typedef std::uint16_t uint16;
 typedef std::uint8_t uint8;
 
 #define MAX_EXPANSION 3
-#define MAX_LOCALE 7
+#define MAX_LOCALE 8
 #define MAX_QUEST_PARTS 7
 
 enum TypeId
