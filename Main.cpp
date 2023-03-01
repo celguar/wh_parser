@@ -4679,7 +4679,7 @@ std::string QuestInfo::GetQuestPart(const std::string& qPart, uint32 expansion, 
     if (qPart == "title")
         return GetTitle(expansion, locale);
     if (qPart == "objectives")
-        return GetObjective(expansion, locale);
+        return GetObjectives(expansion, locale);
     if (qPart == "details")
         return GetDetails(expansion, locale);
     if (qPart == "requestItemText")
