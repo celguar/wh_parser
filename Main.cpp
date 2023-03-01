@@ -1624,7 +1624,12 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                         if (childNode->v.element.tag == GUMBO_TAG_BR)
                         {
                             // TODO replace here or not
-                            query_result << "\n";
+                            // BR tag on div...
+                            if (childNode->v.text.text && childNode->type == GUMBO_NODE_TEXT)
+                                query_result << childNode->v.text.text;
+                            else
+                                query_result << "\n";
+                            //query_result << "\n";
                             //query_result << "$B";
                             //std::cout << "\n";
                         }
