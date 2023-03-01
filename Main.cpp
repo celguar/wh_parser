@@ -2655,9 +2655,6 @@ int main(int argc, char* argv[])
                     // write statistics details
                     std::string filesLocation = "stats/wh/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
-                    writeToFile("-- WH Locales Stats\n", "missingQuestText", filesLocation);
-                    writeToFile("-- WH Locales Stats\n", "engQuestText", filesLocation);
-                    writeToFile("-- WH Locales Stats\n", "missingTags", filesLocation);
                     std::string missingQuestText;
                     std::string engQuestText;
                     std::string missingTags;
@@ -2965,20 +2962,19 @@ int main(int argc, char* argv[])
                         if (hasEngEndText)
                             msg_delay(">   English EndText: %d \n", hasEngEndText);
 
-                        if (i == 3 || i == 4 || i == 6 || i == 7)
-                        {
-                            if (missingNameTag)
-                                msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
-                            if (missingRaceTag)
-                                msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
-                            if (missingClassTag)
-                                msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
-                        }
+                        if (missingNameTag)
+                            msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
+                        if (missingRaceTag)
+                            msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
+                        if (missingClassTag)
+                            msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
 
                         // write stats to file
-                        writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
-                        writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
-                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                        if (!missingQuestText.empty())
+                            writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                        if (!engQuestText.empty())
+                            writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                        if (!missingTags.empty())
                             writeToFile(missingTags.c_str(), "missingTags", filesLocation);
                     }
                 }
@@ -3144,9 +3140,6 @@ int main(int argc, char* argv[])
                     // write statistics details
                     std::string filesLocation = "stats/db/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
-                    writeToFile("-- DB Locales Stats\n", "missingQuestText", filesLocation);
-                    writeToFile("-- DB Locales Stats\n", "engQuestText", filesLocation);
-                    writeToFile("-- DB Locales Stats\n", "missingTags", filesLocation);
                     std::string missingQuestText;
                     std::string engQuestText;
                     std::string missingTags;
@@ -3419,23 +3412,22 @@ int main(int argc, char* argv[])
                         if (hasEngEndText)
                             msg_delay(">   English EndText: %d \n", hasEngEndText);
 
-                        if (i == 3 || i == 4 || i == 6 || i == 7)
-                        {
-                            if (missingNameTag)
-                                msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
-                            if (missingRaceTag)
-                                msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
-                            if (missingClassTag)
-                                msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
-                        }
+                        if (missingNameTag)
+                            msg_delay(">   Missing Name Tag: %d \n", missingNameTag);
+                        if (missingRaceTag)
+                            msg_delay(">   Missing Race Tag: %d \n", missingRaceTag);
+                        if (missingClassTag)
+                            msg_delay(">   Missing Class Tag: %d \n", missingClassTag);
 
                         if (missingQuests)
                             msg_delay("\n>   Missing Quests Locales: %d \n", missingQuests);
 
                         // write stats to file
-                        writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
-                        writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
-                        if (i == 3 || i == 4 || i == 6 || i == 7)
+                        if (!missingQuestText.empty())
+                            writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                        if (!engQuestText.empty())
+                            writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                        if (!missingTags.empty())
                             writeToFile(missingTags.c_str(), "missingTags", filesLocation);
                     }
                     else
@@ -3582,7 +3574,6 @@ int main(int argc, char* argv[])
                     // read existing update file
                     std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(1) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
-                    writeToFile("-- QUERIES GO BELOW\n", "missingEngTexts", filesLocation);
                     std::string updateQueries;
 
                     // write command
@@ -3692,7 +3683,8 @@ int main(int argc, char* argv[])
                     msg_delay(">   Missing Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
 
                     // write queries to file
-                    writeToFile(updateQueries.c_str(), "missingEngTexts", filesLocation);
+                    if (!updateQueries.empty())
+                        writeToFile(updateQueries.c_str(), "missingEngTexts", filesLocation);
                 }
                 // ACTION 1 END
                 return 1;
@@ -3843,7 +3835,6 @@ int main(int argc, char* argv[])
                     // read existing update file
                     std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
-                    writeToFile("-- QUERIES GO BELOW\n", "missingLocales", filesLocation);
                     std::string updateQueries;
 
                     // write command
@@ -4053,7 +4044,8 @@ int main(int argc, char* argv[])
                     msg_delay(">   Added Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
 
                     // write queries to file
-                    writeToFile(updateQueries.c_str(), "missingLocales", filesLocation);
+                    if (!updateQueries.empty())
+                        writeToFile(updateQueries.c_str(), "missingLocales", filesLocation);
                 }
                 // ACTION 2 END
                 return 1;
