@@ -140,6 +140,8 @@ std::string localeName(unsigned int locId)
             return "sp";
         case 7:
             return "ru";
+        case 8:
+            return "tw";
         default:
             return "";
     }
@@ -190,6 +192,8 @@ uint32 localeRealId(uint32 locale)
             break;
         case 7:
             return 8;
+        case 8:
+            return 5;
             break;
     }
 }
@@ -696,7 +700,8 @@ std::string updateQuestFromWhQuery(WowheadQuestInfo* whInfo, DatabaseQuestInfo* 
 
     std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
     std::string colName = questColumnName(partName, locale);
-    std::string whText = whInfo->GetQuestPart(partName, expansion, locale);
+    // fix tw => cn
+    std::string whText = whInfo->GetQuestPart(partName, expansion, locale == 8 ? 5 : locale);
     if (whText.empty())
         return "";
     //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
@@ -2136,6 +2141,9 @@ WowheadQuestInfo* LoadWowheadQuestInfo(uint32 id, uint32 expansion, uint32 local
 {
     if (!id)
         return nullptr;
+
+    if (locale == 8)
+        locale = 5;
 
     // check if already saved
     if (expansion && locale && sDataMgr.questWowheadInfoList[id])
@@ -3709,7 +3717,12 @@ int main(int argc, char* argv[])
                     msg_delay("\n> %s \n", expansionName(e).c_str());
                     for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
                     {
-                        if (locale && locale != i && i != 1)
+                        // use CN for TW from wowhead
+                        uint32 localeId = locale;
+                        if (localeId == 8)
+                            localeId = 5;
+
+                        if (localeId && localeId != i && i != 1)
                             continue;
 
                         std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
@@ -3815,8 +3828,13 @@ int main(int argc, char* argv[])
 
                     uint32 missingDbQuest = 0; // wh exist, db not exist
 
+                    // use CN for TW from wowhead
+                    uint32 localeId = locale;
+                    if (localeId == 8)
+                        localeId = 5;
+
                     std::string cacheEngLocation = "cache/" + expansionName(e) + "/" + localeName(1) + "/quest/";
-                    std::string cacheLocLocation = "cache/" + expansionName(e) + "/" + localeName(locale) + "/quest/";
+                    std::string cacheLocLocation = "cache/" + expansionName(e) + "/" + localeName(localeId) + "/quest/";
                     if (!std::filesystem::is_directory(cacheEngLocation))
                         continue;
                     if (!std::filesystem::is_directory(cacheLocLocation))
@@ -3843,7 +3861,7 @@ int main(int argc, char* argv[])
                             WowheadQuestInfo* qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
                             if (!qWhEngInfo)
                                 continue;
-                            WowheadQuestInfo* qWhLocInfo = LoadWowheadQuestInfo(qID, e, locale, true);
+                            WowheadQuestInfo* qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
                             if (!qWhLocInfo)
                                 continue;
 
@@ -3905,8 +3923,8 @@ int main(int argc, char* argv[])
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        missingObjText++;
                                         msg_nodelay("v", qID);
+                                        missingObjText++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
                                     }
                                 }
