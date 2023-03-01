@@ -510,11 +510,11 @@ void replaceClassTag(std::string& theText, uint32 expansion, uint32 locale)
             const std::regex re1(R"(\|\d-\d\(\$C\))");
             theText = std::regex_replace(theText, re1, "$C");
             const std::regex re2(R"(\|\d-\d\(\$c\))");
-            theText = std::regex_replace(theText, re2, "$C");
+            theText = std::regex_replace(theText, re2, "$c");
             const std::regex re3(R"(\|\d-\d\(\$C(?!\)))");
             theText = std::regex_replace(theText, re3, "$C");
             const std::regex re4(R"(\|\d-\d\(\$c(?!\)))");
-            theText = std::regex_replace(theText, re4, "$C");
+            theText = std::regex_replace(theText, re4, "$c");
         }
         else
         {
