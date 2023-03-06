@@ -99,7 +99,7 @@ void writeToFile(const char* text, const std::string& filename, const std::strin
         //int makeFolder = _mkdir(path.c_str());
     }
 
-    std::wofstream fileOut(path + filename + ".txt");
+    std::wofstream fileOut(path + filename);
     fileOut << text;
     fileOut.close();
    // end
@@ -1438,7 +1438,7 @@ std::string loadPageOrCache(TypeId type, unsigned int id, unsigned int expansion
                 msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Loaded from WH! \n");
                 msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " sCaching... \n");
             }
-            writeToFile(wh_page.c_str(), std::to_string(id), cacheLocation);
+            writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", cacheLocation);
         }
     }
     return wh_page;
@@ -2971,11 +2971,11 @@ int main(int argc, char* argv[])
 
                         // write stats to file
                         if (!missingQuestText.empty())
-                            writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                            writeToFile(missingQuestText.c_str(), "missingQuestText.txt", filesLocation);
                         if (!engQuestText.empty())
-                            writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                            writeToFile(engQuestText.c_str(), "engQuestText.txt", filesLocation);
                         if (!missingTags.empty())
-                            writeToFile(missingTags.c_str(), "missingTags", filesLocation);
+                            writeToFile(missingTags.c_str(), "missingTags.txt", filesLocation);
                     }
                 }
                 msg_delay("\n");
@@ -3424,11 +3424,11 @@ int main(int argc, char* argv[])
 
                         // write stats to file
                         if (!missingQuestText.empty())
-                            writeToFile(missingQuestText.c_str(), "missingQuestText", filesLocation);
+                            writeToFile(missingQuestText.c_str(), "missingQuestText.txt", filesLocation);
                         if (!engQuestText.empty())
-                            writeToFile(engQuestText.c_str(), "engQuestText", filesLocation);
+                            writeToFile(engQuestText.c_str(), "engQuestText.txt", filesLocation);
                         if (!missingTags.empty())
-                            writeToFile(missingTags.c_str(), "missingTags", filesLocation);
+                            writeToFile(missingTags.c_str(), "missingTags.txt", filesLocation);
                     }
                     else
                         msg_delay(">   Missing Quests: %d \n", missingQuests);
@@ -3684,7 +3684,7 @@ int main(int argc, char* argv[])
 
                     // write queries to file
                     if (!updateQueries.empty())
-                        writeToFile(updateQueries.c_str(), "missingEngTexts", filesLocation);
+                        writeToFile(updateQueries.c_str(), "missingEngTexts.sql", filesLocation);
                 }
                 // ACTION 1 END
                 return 1;
@@ -4045,7 +4045,7 @@ int main(int argc, char* argv[])
 
                     // write queries to file
                     if (!updateQueries.empty())
-                        writeToFile(updateQueries.c_str(), "missingLocales", filesLocation);
+                        writeToFile(updateQueries.c_str(), "missingLocales.sql", filesLocation);
                 }
                 // ACTION 2 END
                 return 1;
@@ -4237,7 +4237,8 @@ int main(int argc, char* argv[])
                     msg_delay(">   Added $C: %d \n", addedClassTags);
 
                     // write queries to file
-                    writeToFile(updateQueries.c_str(), "missingTags", filesLocation);
+                    if (!updateQueries.empty())
+                        writeToFile(updateQueries.c_str(), "missingTags.sql", filesLocation);
                 }
                 // ACTION 3 END
                 return 1;
