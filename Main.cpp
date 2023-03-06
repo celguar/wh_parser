@@ -1482,7 +1482,7 @@ std::string loadPageOrCache(TypeId type, unsigned int id, unsigned int expansion
             if (!silent)
             {
                 msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Loaded from WH! \n");
-                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " sCaching... \n");
+                msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Caching... \n");
             }
             writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", cacheLocation);
         }
@@ -3001,6 +3001,8 @@ int main(int argc, char* argv[])
                         }*/
                     }
 
+                    msg_delay(">  processed: %d %s quests \n", counter, localeName(i).c_str());
+
                     if (hasLocales)
                     {
                         msg_delay("\n");
@@ -3663,9 +3665,9 @@ int main(int argc, char* argv[])
 
                             counter++;
                             if ((counter % 1000) == 0)
-                                msg_delay_set(std::to_string(counter), 10);
+                                msg_nodelay(std::to_string(counter));
                             else if ((counter % 100) == 0)
-                                msg_delay_set(".", 10);
+                                msg_nodelay(".");
 
                             // check if missing texts
                             if (!qWhInfo->GetTitle().empty() && qDbInfo->GetTitle().empty())
@@ -3868,7 +3870,7 @@ int main(int argc, char* argv[])
                     //msg_delay("> WH: Analyzing... \n");
                     uint32 counter = 0;
 
-                    msg_delay("\n>  %s \n", localeName(locale).c_str());
+                    msg_delay("\n>  %s\n", localeName(locale).c_str());
 
                     uint32 missingTitle = 0;
                     uint32 missingEndText = 0;
@@ -3932,9 +3934,9 @@ int main(int argc, char* argv[])
 
                             counter++;
                             if ((counter % 1000) == 0)
-                                msg_delay_set(std::to_string(counter), 10);
+                                msg_nodelay(std::to_string(counter) + "\n");
                             else if ((counter % 100) == 0)
-                                msg_delay_set(".", 10);
+                                msg_nodelay(".");
 
                             // use database english as proof that text should exist
                             // TODO fix wowhead parsing of quests that have no details
@@ -4113,6 +4115,7 @@ int main(int argc, char* argv[])
                 // ACTION 2 END
                 return 1;
             }
+            // Auto replace <name> <class> <race> etc
             if (action == 3)
             {
                 int maxQuestId[MAX_EXPANSION];
@@ -4181,7 +4184,7 @@ int main(int argc, char* argv[])
                     // read existing update file
                     std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
-                    writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
+                    //writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
                     std::string updateQueries;
                     uint32 addedNameTags = 0;
                     uint32 addedClassTags = 0;
