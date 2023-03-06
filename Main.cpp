@@ -2633,6 +2633,10 @@ int main(int argc, char* argv[])
                     if (locale && locale != i && i != 1)
                         continue;
 
+                    // skip tw as it does not exist on wh
+                    if (i == 8)
+                        continue;
+
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/quest/";
                     if (!std::filesystem::is_directory(cacheLocation))
                     {
@@ -2679,6 +2683,10 @@ int main(int argc, char* argv[])
                 for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
                 {
                     if (locale && locale != i && i != 1)
+                        continue;
+
+                    // skip tw as it does not exist on wh
+                    if (i == 8)
                         continue;
 
                     // test non eng
@@ -2758,7 +2766,7 @@ int main(int argc, char* argv[])
 
                     msg_delay(">  loaded: %d %s quests \n", counter, localeName(i).c_str());
 
-                    // do not check english here
+                    // do not check english or tw here
                     if (i == 1)
                         continue;
 
