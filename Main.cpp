@@ -673,6 +673,30 @@ bool hasClassTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = fa
     return std::any_of(nameTags.begin(), nameTags.end(), [questText](const std::string& str){return questText.find(str) != std::string::npos;});
 }
 
+bool IsSameString(std::string text1, std::string text2, bool replaceTags = false)
+{
+    // do not compare empty strings here
+    if (text1.empty() && text2.empty())
+        return false;
+
+    if (text1 == text2)
+        return true;
+
+    // expensive
+    if (replaceTags)
+    {
+        replaceNameTag(text1, 1, 1);
+        replaceRaceTag(text1, 1, 1);
+        replaceClassTag(text1, 1, 1);
+
+        replaceNameTag(text2, 1, 1);
+        replaceRaceTag(text2, 1, 1);
+        replaceClassTag(text2, 1, 1);
+    }
+
+    return text1 == text2;
+}
+
 bool hasGenderTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
 {
     std::string questText = qInfo->GetQuestPart(partName, expansion, locale);
@@ -2775,7 +2799,7 @@ int main(int argc, char* argv[])
                             missingTitle++;
                             missingQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetTitle(e, 1).empty() && !qWhInfo->GetTitle().empty() && strcmp(qWhInfo->GetTitle(e, 1).c_str(), qWhInfo->GetTitle().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetTitle(e, 1), qWhInfo->GetTitle(), true))
                         {
                             hasEngTitle++;
                             engQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2786,7 +2810,7 @@ int main(int argc, char* argv[])
                             missingEndText++;
                             missingQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetEndText(e, 1).empty() && !qWhInfo->GetEndText().empty() && strcmp(qWhInfo->GetEndText(e, 1).c_str(), qWhInfo->GetEndText().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetEndText(e, 1), qWhInfo->GetEndText(), true))
                         {
                             hasEngEndText++;
                             engQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2815,7 +2839,7 @@ int main(int argc, char* argv[])
                             missingObjText++;
                             missingQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetObjectives(e, 1).empty() && !qWhInfo->GetObjectives().empty() && strcmp(qWhInfo->GetObjectives(e, 1).c_str(), qWhInfo->GetObjectives().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetObjectives(e, 1), qWhInfo->GetObjectives(), true))
                         {
                             hasEngObjText++;
                             engQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2844,7 +2868,7 @@ int main(int argc, char* argv[])
                             missingReqText++;
                             missingQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetRequestItemText(e, 1).empty() && !qWhInfo->GetRequestItemText().empty() && strcmp(qWhInfo->GetRequestItemText(e, 1).c_str(), qWhInfo->GetRequestItemText().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetRequestItemText(e, 1), qWhInfo->GetRequestItemText(), true))
                         {
                             hasEngReqText++;
                             engQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2873,7 +2897,7 @@ int main(int argc, char* argv[])
                             missingOfferText++;
                             missingQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetOfferRewardText(e, 1).empty() && !qWhInfo->GetOfferRewardText().empty() && strcmp(qWhInfo->GetOfferRewardText(e, 1).c_str(), qWhInfo->GetOfferRewardText().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetOfferRewardText(e, 1), qWhInfo->GetOfferRewardText(), true))
                         {
                             hasEngOfferText++;
                             engQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2902,7 +2926,7 @@ int main(int argc, char* argv[])
                             missingDetails++;
                             missingQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetDetails(e, 1).empty() && !qWhInfo->GetDetails().empty() && strcmp(qWhInfo->GetDetails(e, 1).c_str(), qWhInfo->GetDetails().c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetDetails(e, 1), qWhInfo->GetDetails(), true))
                         {
                             hasEngDetails++;
                             engQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2932,7 +2956,7 @@ int main(int argc, char* argv[])
                             missingObjective1++;
                             missingQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetObjective(0, e, 1).empty() && !qWhInfo->GetObjective(0).empty() && strcmp(qWhInfo->GetObjective(0, e, 1).c_str(), qWhInfo->GetObjective(0).c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetObjective(0, e, 1), qWhInfo->GetObjective(0), true))
                         {
                             hasEngObjective1++;
                             engQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2943,7 +2967,7 @@ int main(int argc, char* argv[])
                             missingObjective2++;
                             missingQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetObjective(1, e, 1).empty() && !qWhInfo->GetObjective(1).empty() && strcmp(qWhInfo->GetObjective(1, e, 1).c_str(), qWhInfo->GetObjective(1).c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetObjective(1, e, 1), qWhInfo->GetObjective(1), true))
                         {
                             hasEngObjective2++;
                             engQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2954,7 +2978,7 @@ int main(int argc, char* argv[])
                             missingObjective3++;
                             missingQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetObjective(2, e, 1).empty() && !qWhInfo->GetObjective(2).empty() && strcmp(qWhInfo->GetObjective(2, e, 1).c_str(), qWhInfo->GetObjective(2).c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetObjective(2, e, 1), qWhInfo->GetObjective(2), true))
                         {
                             hasEngObjective3++;
                             engQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -2965,7 +2989,7 @@ int main(int argc, char* argv[])
                             missingObjective4++;
                             missingQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (!qWhInfo->GetObjective(3, e, 1).empty() && !qWhInfo->GetObjective(3).empty() && strcmp(qWhInfo->GetObjective(3, e, 1).c_str(), qWhInfo->GetObjective(3).c_str()) == 0)
+                        if (IsSameString(qWhInfo->GetObjective(3, e, 1), qWhInfo->GetObjective(3), true))
                         {
                             hasEngObjective4++;
                             engQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -3222,7 +3246,7 @@ int main(int argc, char* argv[])
                             missingTitle++;
                             missingQuestText += "title:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetTitle(e, 1).empty() && !qDbInfo->GetTitle().empty() && strcmp(qDbInfo->GetTitle(e, 1).c_str(), qDbInfo->GetTitle().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetTitle(e, 1), qDbInfo->GetTitle()))
                         {
                             hasEngTitle++;
                             engQuestText += "title:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3233,7 +3257,7 @@ int main(int argc, char* argv[])
                             missingEndText++;
                             missingQuestText += "endText:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetEndText(e, 1).empty() && !qDbInfo->GetEndText().empty() && strcmp(qDbInfo->GetEndText(e, 1).c_str(), qDbInfo->GetEndText().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetEndText(e, 1), qDbInfo->GetEndText()))
                         {
                             hasEngEndText++;
                             engQuestText += "endText:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3263,7 +3287,7 @@ int main(int argc, char* argv[])
                             missingQuestText += "objective:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
 
-                        if (!qDbInfo->GetObjectives(e, 1).empty() && !qDbInfo->GetObjectives().empty() && strcmp(qDbInfo->GetObjectives(e, 1).c_str(), qDbInfo->GetObjectives().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetObjectives(e, 1), qDbInfo->GetObjectives()))
                         {
                             hasEngObjText++;
                             engQuestText += "objective:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3292,7 +3316,7 @@ int main(int argc, char* argv[])
                             missingReqText++;
                             missingQuestText += "reqItem:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetRequestItemText(e, 1).empty() && !qDbInfo->GetRequestItemText().empty() && strcmp(qDbInfo->GetRequestItemText(e, 1).c_str(), qDbInfo->GetRequestItemText().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetRequestItemText(e, 1), qDbInfo->GetRequestItemText()))
                         {
                             hasEngReqText++;
                             engQuestText += "reqItem:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3321,7 +3345,7 @@ int main(int argc, char* argv[])
                             missingOfferText++;
                             missingQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetOfferRewardText(e, 1).empty() && !qDbInfo->GetOfferRewardText().empty() && strcmp(qDbInfo->GetOfferRewardText(e, 1).c_str(), qDbInfo->GetOfferRewardText().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetRequestItemText(e, 1), qDbInfo->GetRequestItemText()))
                         {
                             hasEngOfferText++;
                             engQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3350,7 +3374,7 @@ int main(int argc, char* argv[])
                             missingDetails++;
                             missingQuestText += "details:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetDetails(e, 1).empty() && !qDbInfo->GetDetails().empty() && strcmp(qDbInfo->GetDetails(e, 1).c_str(), qDbInfo->GetDetails().c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetDetails(e, 1), qDbInfo->GetDetails()))
                         {
                             hasEngDetails++;
                             engQuestText += "details:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3380,7 +3404,7 @@ int main(int argc, char* argv[])
                             missingObjective1++;
                             missingQuestText += "obj1:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetObjective(0, e, 1).empty() && !qDbInfo->GetObjective(0).empty() && strcmp(qDbInfo->GetObjective(0, e, 1).c_str(), qDbInfo->GetObjective(0).c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetObjective(0, e, 1), qDbInfo->GetObjective(0)))
                         {
                             hasEngObjective1++;
                             engQuestText += "obj1:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3391,7 +3415,7 @@ int main(int argc, char* argv[])
                             missingObjective2++;
                             missingQuestText += "obj2:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetObjective(1, e, 1).empty() && !qDbInfo->GetObjective(1).empty() && strcmp(qDbInfo->GetObjective(1, e, 1).c_str(), qDbInfo->GetObjective(1).c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetObjective(1, e, 1), qDbInfo->GetObjective(1)))
                         {
                             hasEngObjective2++;
                             engQuestText += "obj2:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3402,7 +3426,7 @@ int main(int argc, char* argv[])
                             missingObjective3++;
                             missingQuestText += "obj3:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetObjective(2, e, 1).empty() && !qDbInfo->GetObjective(2).empty() && strcmp(qDbInfo->GetObjective(2, e, 1).c_str(), qDbInfo->GetObjective(2).c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetObjective(2, e, 1), qDbInfo->GetObjective(2)))
                         {
                             hasEngObjective3++;
                             engQuestText += "obj3:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3413,7 +3437,7 @@ int main(int argc, char* argv[])
                             missingObjective4++;
                             missingQuestText += "obj4:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (!qDbInfo->GetObjective(3, e, 1).empty() && !qDbInfo->GetObjective(3).empty() && strcmp(qDbInfo->GetObjective(3, e, 1).c_str(), qDbInfo->GetObjective(3).c_str()) == 0)
+                        if (IsSameString(qDbInfo->GetObjective(3, e, 1), qDbInfo->GetObjective(3)))
                         {
                             hasEngObjective4++;
                             engQuestText += "obj4:" + std::to_string(qDbInfo->GetEntry()) + "\n";
@@ -3919,11 +3943,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetTitle().empty() && qDbLocInfo->GetTitle().empty())
                                 {
-                                    if (qWhLocInfo->GetTitle(e, 1) == qWhLocInfo->GetTitle())
+                                    if (IsSameString(qWhLocInfo->GetTitle(e, 1), qWhLocInfo->GetTitle(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingTitle++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "title", e, locale) + "\n";
                                     }
@@ -3934,11 +3958,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetEndText().empty() && qDbLocInfo->GetEndText().empty())
                                 {
-                                    if (qWhLocInfo->GetEndText(e, 1) == qWhLocInfo->GetEndText())
+                                    if (IsSameString(qWhLocInfo->GetEndText(e, 1), qWhLocInfo->GetEndText(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingEndText++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "endText", e, locale) + "\n";
                                     }
@@ -3949,11 +3973,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetObjectives().empty() && qDbLocInfo->GetObjectives().empty())
                                 {
-                                    if (qWhLocInfo->GetObjectives(e, 1) == qWhLocInfo->GetObjectives())
+                                    if (IsSameString(qWhLocInfo->GetObjectives(e, 1), qWhLocInfo->GetObjectives(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingObjText++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
                                     }
@@ -3964,12 +3988,12 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetRequestItemText().empty() && qDbLocInfo->GetRequestItemText().empty())
                                 {
-                                    if (qWhLocInfo->GetRequestItemText(e, 1) == qWhLocInfo->GetRequestItemText())
+                                    if (IsSameString(qWhLocInfo->GetRequestItemText(e, 1), qWhLocInfo->GetRequestItemText(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
                                         missingReqText++;
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "requestItemText", e, locale) + "\n";
                                     }
                                 }
@@ -3979,11 +4003,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetOfferRewardText().empty() && qDbLocInfo->GetOfferRewardText().empty())
                                 {
-                                    if (qWhLocInfo->GetOfferRewardText(e, 1) == qWhLocInfo->GetOfferRewardText())
+                                    if (IsSameString(qWhLocInfo->GetOfferRewardText(e, 1), qWhLocInfo->GetOfferRewardText(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingOfferText++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "offerRewardText", e, locale) + "\n";
                                     }
@@ -3994,11 +4018,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetDetails().empty() && qDbLocInfo->GetDetails().empty())
                                 {
-                                    if (qWhLocInfo->GetDetails(e, 1) == qWhLocInfo->GetDetails())
+                                    if (IsSameString(qWhLocInfo->GetDetails(e, 1), qWhLocInfo->GetDetails(), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingDetails++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "details", e, locale) + "\n";
                                     }
@@ -4010,11 +4034,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetObjective(0).empty() && qDbLocInfo->GetObjective(0).empty())
                                 {
-                                    if (qWhLocInfo->GetObjective(0, e, 1) == qWhLocInfo->GetObjective(0))
+                                    if (IsSameString(qWhLocInfo->GetObjective(0, e, 1), qWhLocInfo->GetObjective(0), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingObjective1++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText1", e, locale) + "\n";
                                     }
@@ -4025,11 +4049,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetObjective(1).empty() && qDbLocInfo->GetObjective(1).empty())
                                 {
-                                    if (qWhLocInfo->GetObjective(1, e, 1) == qWhLocInfo->GetObjective(1))
+                                    if (IsSameString(qWhLocInfo->GetObjective(1, e, 1), qWhLocInfo->GetObjective(1), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingObjective2++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText2", e, locale) + "\n";
                                     }
@@ -4040,11 +4064,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetObjective(2).empty() && qDbLocInfo->GetObjective(2).empty())
                                 {
-                                    if (qWhLocInfo->GetObjective(2, e, 1) == qWhLocInfo->GetObjective(2))
+                                    if (IsSameString(qWhLocInfo->GetObjective(2, e, 1), qWhLocInfo->GetObjective(2), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingObjective3++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText3", e, locale) + "\n";
                                     }
@@ -4055,11 +4079,11 @@ int main(int argc, char* argv[])
                             {
                                 if (!qWhLocInfo->GetObjective(3).empty() && qDbLocInfo->GetObjective(3).empty())
                                 {
-                                    if (qWhLocInfo->GetObjective(3, e, 1) == qWhLocInfo->GetObjective(3))
+                                    if (IsSameString(qWhLocInfo->GetObjective(3, e, 1), qWhLocInfo->GetObjective(3), true))
                                         msg_nodelay("x", qID);
                                     else
                                     {
-                                        msg_nodelay("v", qID);
+                                        //msg_nodelay("v", qID);
                                         missingObjective4++;
                                         updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText4", e, locale) + "\n";
                                     }
