@@ -711,9 +711,9 @@ std::string updateQuestFromWhQuery(WowheadQuestInfo* whInfo, DatabaseQuestInfo* 
     //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
 
     // replace nameTags
-    //replaceNameTag(whText, locale);
-    //replaceClassTag(whText, locale);
-    //replaceRaceTag(whText, locale);
+    replaceNameTag(whText, expansion, locale);
+    replaceClassTag(whText, expansion, locale);
+    replaceRaceTag(whText, expansion, locale);
     replaceNewLine(whText);
 
     char *tStr = new char[strlen(whText.c_str())*2+1];
@@ -736,9 +736,9 @@ std::string updateQuestFromTextQuery(const std::string& replace, DatabaseQuestIn
     //std::string dbText = dbInfo->GetQuestPart(partName, expansion, locale);
 
     // replace nameTags
-    //replaceNameTag(replaceText, locale);
-    //replaceClassTag(replaceText, locale);
-    //replaceRaceTag(replaceText, locale);
+    replaceNameTag(replaceText, expansion, locale);
+    replaceClassTag(replaceText, expansion, locale);
+    replaceRaceTag(replaceText, expansion, locale);
     replaceNewLine(replaceText);
 
     char *tStr = new char[strlen(replaceText.c_str())*2+1];
