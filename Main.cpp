@@ -164,12 +164,16 @@ std::string typeName(TypeId typeId)
 {
     switch (typeId)
     {
-    case TYPE_QUEST:
-        return "quest";
-    case TYPE_NPC:
-        return "npc";
-    default:
-        return "quest";
+        case TYPE_QUEST:
+            return "quest";
+        case TYPE_NPC:
+            return "npc";
+        case TYPE_ITEM:
+            return "item";
+        case TYPE_OBJECT:
+            return "object";
+        default:
+            return "quest";
     }
 }
 
@@ -938,7 +942,7 @@ bool DatabaseConnect::RunStringStmt(const std::string &command, std::vector<std:
     return true;
 }
 
-bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &result, int32 numStrings)
+bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &result, int32 numStrings, bool silent)
 {
     MYSQL_STMT* stmt;
     auto* bind = new MYSQL_BIND[numStrings];
@@ -957,12 +961,14 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     if (!stmt)
     {
         fprintf(stderr, " mysql_stmt_init(), out of memory\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
     if (mysql_stmt_prepare(stmt, command.c_str(), strlen(command.c_str())))
     {
         fprintf(stderr, " mysql_stmt_prepare(), SELECT failed\n");
         fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
     //fprintf(stdout, " prepare, SELECT successful\n");
@@ -974,6 +980,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     if (param_count != 0) /* validate parameter count */
     {
         fprintf(stderr, " invalid parameter count returned by MySQL\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -982,6 +989,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     {
         fprintf(stderr, " mysql_stmt_execute(), failed\n");
         fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -993,6 +1001,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
                 " mysql_stmt_result_metadata(), \
            returned no meta information\n");
         fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -1004,7 +1013,8 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
 
     if (column_count != numStrings) /* validate column count */
     {
-        fprintf(stderr, " invalid column count returned by MySQL\n");
+        if (!silent) fprintf(stderr, " invalid column count returned by MySQL\n");
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -1026,6 +1036,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     {
         fprintf(stderr, " mysql_stmt_bind_result() failed\n");
         fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -1034,6 +1045,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     {
         fprintf(stderr, " mysql_stmt_store_result() failed\n");
         fprintf(stderr, " %s\n", mysql_stmt_error(stmt));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -1061,7 +1073,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
     //fprintf(stdout, " total rows fetched: %d\n", row_count);
     if (row_count < 1)
     {
-        fprintf(stderr, " MySQL failed to return all rows\n");
+        if (!silent) fprintf(stderr, " MySQL failed to return all rows\n");
     }
 
     /* Free the prepared result metadata */
@@ -1075,6 +1087,7 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
         /* mysql_error(mysql) rather than mysql_stmt_error(stmt) */
         fprintf(stderr, " failed while closing the statement\n");
         fprintf(stderr, " %s\n", mysql_error(mysql));
+        delete[] bind; delete[] length; delete[] is_null; delete[] error;
         return false;
     }
 
@@ -1111,10 +1124,10 @@ bool DatabaseConnect::GetDbStrings(const std::string& command, std::vector<std::
     return false;
 }
 
-bool DatabaseConnect::GetDbInt(const std::string& command, int& result)
+bool DatabaseConnect::GetDbInt(const std::string& command, int& result, bool silent)
 {
     std::vector<int> strVec;
-    RunIntStmt(command, strVec, 1);
+    RunIntStmt(command, strVec, 1, silent);
     if (strVec.empty())
         return false;
 
@@ -1133,10 +1146,19 @@ bool DatabaseConnect::IsEntryExistInDb(TypeId type, uint32 id)
     {
         std::string command;
         if (type == TYPE_QUEST)
-            command = "SELECT Title FROM quest_template WHERE entry = " + std::to_string(id);
+            command = "SELECT entry FROM quest_template WHERE entry = " + std::to_string(id);
 
-        std::string result;
-        return GetDbString(command, result, true);
+        if (type == TYPE_NPC)
+            command = "SELECT Entry FROM creature_template WHERE Entry = " + std::to_string(id);
+
+        if (type == TYPE_ITEM)
+            command = "SELECT entry FROM item_template WHERE Entry = " + std::to_string(id);
+
+        if (type == TYPE_OBJECT)
+            command = "SELECT entry FROM gameobject_template WHERE entry = " + std::to_string(id);
+
+        int result;
+        return GetDbInt(command, result, true);
     }
     return false;
 }
@@ -1558,13 +1580,26 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
     {
         for (auto id = min_id; id < max_id + 1; ++id)
         {
-            if (id > min_id)
-                msg_delay("\n");
-
             for (auto e = 1; e < 4 + 1; ++e) // expansion
             {
                 if (expansion != 0 && e != expansion)
                     continue;
+
+#ifdef SKIP_NONDB
+                // skip loading pages not in DB
+                if ((type == TYPE_OBJECT || type == TYPE_ITEM || type == TYPE_NPC) && sDataMgr.IsDbOn(e))
+                {
+                    auto DbCon = sDataMgr.GetCon(e);
+                    if (DbCon)
+                    {
+                        if (!DbCon->IsEntryExistInDb(type, id))
+                        {
+                            msg_nodelay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + ": Not in DB, skipping...");
+                            continue;
+                        }
+                    }
+                }
+#endif
 
                 bool noEnglishPage = false; // speed up missing quests process
                 for (auto i = 1; i < 7 + 1; ++i) // locales
@@ -1581,7 +1616,7 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(type) + "/";
                     std::string wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
                     if (!wh_page.empty())
-                        msg_delay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
+                        msg_delay_set("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...", 10);
                     else
                     {
                         std::string page = loadPageOrCache(type, id, e, i, true);
@@ -1596,6 +1631,8 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                     }
                 }
             }
+            if (id > min_id)
+                msg_nodelay("\n");
         }
         msg_delay("\n\n Done!");
     }
@@ -2478,6 +2515,8 @@ int main(int argc, char* argv[])
             std::cout << "\nSelect parse type: \n";
             std::cout << "1) Quest \n";
             std::cout << "2) NPC \n";
+            std::cout << "3) Item \n";
+            std::cout << "4) Gameobject \n";
             std::cin >> type;
 
             // only quest is supported

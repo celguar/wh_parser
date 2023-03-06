@@ -25,12 +25,15 @@ typedef std::uint8_t uint8;
 #define MAX_EXPANSION 3
 #define MAX_LOCALE 8
 #define MAX_QUEST_PARTS 7
+#define SKIP_NONDB 1
 
 enum TypeId
 {
     TYPE_NONE  = 0,
     TYPE_QUEST = 1,
     TYPE_NPC   = 2,
+    TYPE_ITEM = 3,
+    TYPE_OBJECT = 4,
 };
 
 enum EntrySource
@@ -61,10 +64,10 @@ public:
     [[nodiscard]] bool IsConnected() const { return isConnected; }
     bool IsEntryExistInDb(TypeId type, uint32 id);
     bool RunStringStmt(const std::string& command, std::vector<std::string>& result, int32 numStrings = 1, bool silent = false);
-    bool RunIntStmt(const std::string& command, std::vector<int>& result, int32 numStrings = 1);
+    bool RunIntStmt(const std::string& command, std::vector<int>& result, int32 numStrings = 1, bool silent = false);
     bool GetDbString(const std::string& command, std::string& result, bool silent = false);
     bool GetDbStrings(const std::string& command, std::vector<std::string>& result, int numStrings, bool silent = false);
-    bool GetDbInt(const std::string& command, int& result);
+    bool GetDbInt(const std::string& command, int& result, bool silent = false);
 
     MYSQL* GetMysql() { return mysql; }
 
