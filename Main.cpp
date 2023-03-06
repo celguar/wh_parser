@@ -791,6 +791,59 @@ std::string updateQuestFromTextQueryNoTags(const std::string& replace, DatabaseQ
     return command;
 }
 
+std::string FindAltText(DatabaseQuestInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale, bool skipDiff = true)
+{
+    if (!dbInfo)
+        return "";
+
+    uint32 localeId = locale == 8 ? 5 : locale;
+
+    std::string origText = dbInfo->GetQuestPart(partName, expansion, localeId);
+    std::string origTextEng = dbInfo->GetQuestPart(partName, expansion, 1);
+
+    // if engText empty, skip
+    if (/*origText.empty() || */origTextEng.empty())
+        return "";
+
+    // find alt text in other expansion
+    std::string altText;
+    for (auto ex = 1; ex <= MAX_EXPANSION; ++ex) // expansion
+    {
+        if (ex == expansion)
+            continue;
+
+        // load expansion data here (should be loaded already)
+        /*if (!dbInfo->IsLoaded(ex, localeId))
+            dbInfo->LoadEntryData(ex, localeId);*/
+
+        // skip if no data (should not happen even if empty quest)
+        if (!dbInfo->IsLoaded(ex, localeId))
+            continue;
+
+        // skip if no locales to take
+        std::string expText = dbInfo->GetQuestPart(partName, ex, localeId);
+        if (expText.empty())
+            continue;
+
+        // skip if EN texts are different (quest was changed in expansion)
+        std::string expTextEng = dbInfo->GetQuestPart(partName, ex, 1);
+        if (skipDiff && expTextEng != origTextEng)
+            continue;
+
+        // skip if locales are same as EN text
+        if(IsSameString(expText, expTextEng, true))
+            continue;
+
+        // not needed if skipDiff is true
+        if(!skipDiff && IsSameString(expText, origTextEng, true))
+            continue;
+
+        altText = expText;
+    }
+
+    return altText;
+}
+
 bool TestDbConnect()
 {
     auto* mysql = new MYSQL;
@@ -3531,9 +3584,10 @@ int main(int argc, char* argv[])
 
             std::cout << "\nSelect Action: \n";
             std::cout << "1) Add missing English texts (BUGGY DONT USE)\n";
-            std::cout << "2) Add missing locale texts TODO: manual fix of missing Name tags \n";
-            std::cout << "3) Fix $n, $c, $r wildcards e.g. |3-6(жрец), <nom> etc \n";
-            std::cout << "4) TODO \n";
+            std::cout << "2) Auto add missing locales from WowHead (Skip english texts) \n";
+            std::cout << "3) Replace <name>, <class>, <race> with $n, $c, $r. Also |3-X() in ru classic \n";
+            std::cout << "4) Auto add missing locales from other expansions (if English is same) \n";
+            std::cout << "5) TODO \n";
             std::cin >> action;
 
             if (!locale || !expansion)
@@ -4315,6 +4369,307 @@ int main(int argc, char* argv[])
                         writeToFile(updateQueries.c_str(), "missingTags.sql", filesLocation);
                 }
                 // ACTION 3 END
+                return 1;
+            }
+            // Auto add missing translations from other expansions
+            if (action == 4)
+            {
+                // Choose locale
+                bool checkDiff = true;
+                uint32 inputCheck = 0;
+                std::cout << "\nCheck for English text equality?: \n";
+                std::cout << "1) Yes \n";
+                std::cout << "2) No \n";
+                std::cin >> inputCheck;
+                if (!inputCheck || inputCheck == 1)
+                    checkDiff = true;
+                else
+                    checkDiff = false;
+
+                int maxQuestId[MAX_EXPANSION];
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                // print db data
+                msg_delay("\n");
+                msg_delay("> DB: \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    //if (expansion && expansion != e)
+                    //    continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    auto DbConnect = sDataMgr.GetCon(e);
+                    if (!DbConnect || !DbConnect->IsConnected())
+                    {
+                        msg_delay("> DB: Failed to connect! \n");
+                        //delete DbConnect;
+                        return 0;
+                    }
+
+                    int counter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", counter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay(">  %s total: %d, max id: %d \n", localeName(1).c_str(), counter, maxQuestId[e - 1]);
+
+                    msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+
+                    for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                    {
+                        if (locale && locale != i)
+                            continue;
+
+                        int trCount = 0;
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                        msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                        if (locale && trCount == 0)
+                        {
+                            msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
+                            return 0;
+                        }
+                    }
+                }
+
+                // do action
+                msg_delay("\n");
+
+                msg_delay("> Starting... \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    msg_delay("> DB: Checking other expansions... \n");
+
+                    // read existing update file
+                    std::string filesLocation = "work/" + expansionName(e) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    //writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
+                    std::string updateQueries;
+                    uint32 missingTitle = 0;
+                    uint32 missingEndText = 0;
+                    uint32 missingObjText = 0;
+                    uint32 missingReqText = 0;
+                    uint32 missingOfferText = 0;
+                    uint32 missingDetails = 0;
+                    uint32 missingObjective1 = 0;
+                    uint32 missingObjective2 = 0;
+                    uint32 missingObjective3 = 0;
+                    uint32 missingObjective4 = 0;
+
+                    uint32 counter = 0;
+                    for (auto d = 1; d <= maxQuestId[e - 1]; ++d)
+                    {
+                        // initialize all 3 expansions
+                        DatabaseQuestInfo* qDbLocInfo = LoadDatabaseQuestInfo(d, e, locale, true, true);
+                        if (!qDbLocInfo || !qDbLocInfo->IsLoaded(e, locale))
+                        {
+                            //msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                            continue;
+
+                        }
+                        else
+                        {
+                            // load EN
+                            qDbLocInfo->LoadEntryData(1, 1);
+                            qDbLocInfo->LoadEntryData(2, 1);
+                            qDbLocInfo->LoadEntryData(3, 1);
+                            qDbLocInfo->LoadEntryData(1, locale);
+                            qDbLocInfo->LoadEntryData(2, locale);
+                            qDbLocInfo->LoadEntryData(3, locale);
+                            // set here othwerwise is 1
+                            qDbLocInfo->SetCurExpansion(e);
+                            qDbLocInfo->SetCurLocale(locale);
+
+                            counter++;
+                            //msg_nodelay(".");// msg_delay_set(".", 50);
+                            if ((counter % 1000) == 0)
+                                msg_nodelay(std::to_string(counter) + "\n");
+                            else if ((counter % 100) == 0)
+                                msg_nodelay(".");
+
+                            // logic goes here
+
+                            if (!qDbLocInfo->GetTitle(e, 1).empty() && qDbLocInfo->GetTitle().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "title", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingTitle++;
+                                    updateQueries += updateQuestFromTextQuery(replace,qDbLocInfo, "title", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetEndText(e, 1).empty() && qDbLocInfo->GetEndText().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "endText", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingEndText++;
+                                    updateQueries += updateQuestFromTextQuery(replace,qDbLocInfo, "endText", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjectives(e, 1).empty() && qDbLocInfo->GetObjectives().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "objectives", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingObjText++;
+                                    updateQueries += updateQuestFromTextQuery(replace,qDbLocInfo, "objectives", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetRequestItemText(e, 1).empty() && qDbLocInfo->GetRequestItemText().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "requestItemText", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingReqText++;
+                                    updateQueries += updateQuestFromTextQuery(replace,qDbLocInfo, "requestItemText", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetOfferRewardText(e, 1).empty() && qDbLocInfo->GetOfferRewardText().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "offerRewardText", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingOfferText++;
+                                    updateQueries += updateQuestFromTextQuery(replace,qDbLocInfo, "offerRewardText", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetDetails(e, 1).empty() && qDbLocInfo->GetDetails().empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "details", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingDetails++;
+                                    updateQueries += updateQuestFromTextQuery(replace, qDbLocInfo, "details", e, locale) + "\n";
+                                }
+                            }
+
+                            // Objective 1-4
+                            if (!qDbLocInfo->GetObjective(0, e, 1).empty() && qDbLocInfo->GetObjective(0).empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "objectiveText1", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingObjective1++;
+                                    updateQueries += updateQuestFromTextQuery(replace, qDbLocInfo, "objectiveText1", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(1, e, 1).empty() && qDbLocInfo->GetObjective(1).empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "objectiveText2", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingObjective2++;
+                                    updateQueries += updateQuestFromTextQuery(replace, qDbLocInfo, "objectiveText2", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(2, e, 1).empty() && qDbLocInfo->GetObjective(2).empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "objectiveText3", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingObjective3++;
+                                    updateQueries += updateQuestFromTextQuery(replace, qDbLocInfo, "objectiveText3", e, locale) + "\n";
+                                }
+                            }
+
+                            if (!qDbLocInfo->GetObjective(3, e, 1).empty() && qDbLocInfo->GetObjective(3).empty())
+                            {
+                                std::string replace = FindAltText(qDbLocInfo, "objectiveText4", e, locale, checkDiff);
+                                if (replace.empty())
+                                {
+                                    //msg_nodelay("x");
+                                }
+                                else
+                                {
+                                    msg_nodelay("v");
+                                    missingObjective4++;
+                                    updateQueries += updateQuestFromTextQuery(replace, qDbLocInfo, "objectiveText4", e, locale) + "\n";
+                                }
+                            }
+                        }
+
+
+                    }
+
+                    // print results
+                    msg_delay("\n\n");
+
+
+                    msg_delay(">   Added Title: %d \n", missingTitle);
+                    msg_delay(">   Added Objectives: %d \n", missingObjText);
+                    msg_delay(">   Added Details: %d \n", missingDetails);
+                    msg_delay(">   Added RequestItemText: %d \n", missingReqText);
+                    msg_delay(">   Added OfferRewardText: %d \n", missingOfferText);
+                    msg_delay(">   Added EndText: %d \n", missingEndText);
+                    msg_delay(">   Added Objective1-4: %d - %d - %d - %d \n", missingObjective1, missingObjective2, missingObjective3, missingObjective4);
+
+                    // write queries to file
+                    if (!updateQueries.empty())
+                        writeToFile(updateQueries.c_str(), checkDiff ? "missingFromOtherExp.sql" : "missingFromOtherExpIncludeDiffEng.sql", filesLocation);
+                }
+                // ACTION 4 END
                 return 1;
             }
         }
