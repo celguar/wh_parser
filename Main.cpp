@@ -266,8 +266,11 @@ std::string questAllColumns(uint32 locale = 1)
     ", ObjectiveText4_loc" + std::to_string(localeRealId(locale));
 }
 
-const char* dbName(uint32 expansion)
+const char* dbName(uint32 expansion, std::string projectName = "cmangos")
 {
+    if (expansion == 1 && projectName == "vmangos")
+        return "mangos";
+
     const char* dbName = nullptr;
     if (expansion == 1)
         dbName = "classicmangos";
@@ -2224,6 +2227,8 @@ QuestStrings LoadQuestFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
     std::string questColumns = questAllColumns(locale);
     std::string tableName = locale == 1 ? "quest_template" : "locales_quest";
     command << "SELECT " << questColumns <<  " FROM " << tableName << " WHERE entry = " << std::to_string(id);
+    if (locale == 1 && sDataMgr.getProjectName() == "vmangos")
+        command << " ORDER by patch DESC LIMIT 1";
     if (!dbCon->GetDbStrings(command.str(), questText, 10, true))
         return qStrings;
 
