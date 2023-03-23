@@ -337,7 +337,8 @@ void replaceNameTag(std::string& theText, uint32 expansion, uint32 locale)
     // classic RU does not support declination
     if (locale == 7)
     {
-        if (expansion == 1)
+        // do not remove declination
+        if (expansion == 10)
         {
             const std::regex re1(R"(\|\d-\d\(\$N\))");
             theText = std::regex_replace(theText, re1, "$N");
@@ -410,7 +411,7 @@ void replaceRaceTag(std::string& theText, uint32 expansion, uint32 locale)
         for (const auto& className : posClassesLow)
         {
             const std::regex re("\\|(\\d)-(\\d)\\(" + className + "\\)");
-            if (expansion == 1)
+            if (expansion == 10) // do not remove declination
                 theText = std::regex_replace(theText, re, "$r");
             else
                 theText = std::regex_replace(theText, re, "|$1-$2($r)");
@@ -419,13 +420,14 @@ void replaceRaceTag(std::string& theText, uint32 expansion, uint32 locale)
         for (const auto& className : posClassesUp)
         {
             const std::regex re("\\|(\\d)-(\\d)\\(" + className + "\\)");
-            if (expansion == 1)
+            if (expansion == 10) // do not remove declination
                 theText = std::regex_replace(theText, re, "$R");
             else
                 theText = std::regex_replace(theText, re, "|$1-$2($R)");
         }
 
-        if (expansion == 1)
+        // do not remove declination
+        if (expansion == 10)
         {
             const std::regex re1(R"(\|\d-\d\(\$R\))");
             theText = std::regex_replace(theText, re1, "$R");
@@ -501,7 +503,7 @@ void replaceClassTag(std::string& theText, uint32 expansion, uint32 locale)
         {
             std::string rege = "\\|(\\d)-(\\d)\\(" + className + "\\)";
             const std::regex re(rege);
-            if (expansion == 1)
+            if (expansion == 10) // do not remove declination
                 theText = std::regex_replace(theText, re, "$c");
             else
                 theText = std::regex_replace(theText, re, "|$1-$2($c)");
@@ -510,13 +512,14 @@ void replaceClassTag(std::string& theText, uint32 expansion, uint32 locale)
         {
             std::string rege = "\\|(\\d)-(\\d)\\(" + className + "\\)";
             const std::regex re(rege);
-            if (expansion == 1)
+            if (expansion == 10) // do not remove declination
                 theText = std::regex_replace(theText, re, "$C");
             else
                 theText = std::regex_replace(theText, re, "|$1-$2($C)");
         }
 
-        if (expansion == 1)
+        // do not remove declination
+        if (expansion == 10)
         {
             const std::regex re1(R"(\|\d-\d\(\$C\))");
             theText = std::regex_replace(theText, re1, "$C");
