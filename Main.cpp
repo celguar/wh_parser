@@ -2498,7 +2498,6 @@ int main(int argc, char* argv[])
     if (argc > 1)
         isCommandLine = true;
 
-    msg_delay("> DB: Initialize connection...\n");
     sDataMgr.Initialize();
 
 
@@ -5160,8 +5159,8 @@ DatabaseConnect::DatabaseConnect(const char *host, uint32 port, const char *user
 
         mysql_close(mysql);
     }
-
-    isConnected = true;
+    else
+        isConnected = true;
 }
 
 DatabaseConnect::~DatabaseConnect()
@@ -5174,17 +5173,68 @@ void DataManager::Initialize()
     if (isInitialized)
         return;
 
+    std::string host = "127.0.0.1";
+    std::string port = "3310";
+    std::string user = "root";
+    std::string password = "123456";
+    std::string projectName = "cmangos";
+
+    std::string confStr = readFromFile("wh_parse.conf");
+    if (!confStr.empty())
+        msg_delay("\nConfig file found, reading parameters...\n");
+    //const char config = confStr;
+
+    std::istringstream is_file(confStr);
+
+    std::string line;
+    while( std::getline(is_file, line) )
+    {
+        std::istringstream is_line(line);
+        std::string key;
+        if( std::getline(is_line, key, '=') )
+        {
+            std::string value;
+            if( std::getline(is_line, value) )
+            {
+                //store_line(key, value);
+                if (key == "project")
+                    projectInfo.projectName = value;
+                if (key == "host")
+                    projectInfo.host = value;
+                if (key == "port")
+                    projectInfo.port = value;
+                if (key == "user")
+                    projectInfo.user = value;
+                if (key == "password")
+                    projectInfo.password = value;
+            }
+        }
+    }
+
+    msg_delay("\n> DataManager: Initializing...");
+    msg_delay("\n>   Project: %s", projectInfo.projectName.c_str());
+    msg_delay("\n>   DB Host: %s", projectInfo.host.c_str());
+    msg_delay("\n>   DB Port: %s", projectInfo.port.c_str());
+    msg_delay("\n>   DB User: %s", projectInfo.user.c_str());
+    msg_delay("\n>   DB Pass: %s", projectInfo.password.c_str());
+    msg_delay("\n");
+
     for (auto i = 0; i < MAX_EXPANSION; ++i)
     {
-        auto dbCon = new DatabaseConnect("127.0.0.1", 3310, "root", "123456", dbName(i + 1));
+        msg_delay("\n>   DB Connect: %s - ", dbName(i + 1, projectInfo.projectName));
+        auto dbCon = new DatabaseConnect(projectInfo.host.c_str(), stoi(projectInfo.port), projectInfo.user.c_str(), projectInfo.password.c_str(), dbName(i + 1, projectInfo.projectName));
         if (!dbCon->IsConnected())
+        {
             delete dbCon;
+        }
         else
         {
+            msg_delay("Success!\n", dbName(i + 1, projectInfo.projectName));
             isInitialized = true;
             mysqlCon[i] = dbCon;
         }
     }
+    msg_delay("\n");
 
     // fill quest database entries with nullptr
     for (auto i = 1; i < 30000; ++i)

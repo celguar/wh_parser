@@ -54,6 +54,15 @@ struct QuestStrings
     std::string objectiveList[4];
 };
 
+struct ProjectInfo
+{
+    std::string host;
+    std::string port;
+    std::string user;
+    std::string password;
+    std::string projectName;
+};
+
 class DatabaseConnect
 {
 public:
@@ -181,8 +190,10 @@ public:
     std::map<uint32, WowheadQuestInfo*> questWowheadInfoList;
     std::map<uint32, DatabaseQuestInfo*> questDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
+    std::string getProjectName() const { return projectInfo.projectName; };
 
 private:
+    ProjectInfo projectInfo;
     DatabaseConnect* mysqlCon[MAX_EXPANSION]{};
     bool isInitialized;
 };
