@@ -3301,7 +3301,7 @@ int main(int argc, char* argv[])
                     uint32 missingNameTag = 0;
 
                     // write statistics details
-                    std::string filesLocation = "stats/db/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
+                    std::string filesLocation = "stats/db/" + sDataMgr.getProjectName() + "/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                     std::string missingQuestText;
                     std::string engQuestText;
@@ -3736,7 +3736,7 @@ int main(int argc, char* argv[])
                         continue;
 
                     // read existing update file
-                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(1) + "/" + typeName(TYPE_QUEST) + "/";
+                    std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                     std::string updateQueries;
 
@@ -3997,7 +3997,7 @@ int main(int argc, char* argv[])
                         continue;
 
                     // read existing update file
-                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                     std::string updateQueries;
 
@@ -4209,7 +4209,7 @@ int main(int argc, char* argv[])
 
                     // write queries to file
                     if (!updateQueries.empty())
-                        writeToFile(updateQueries.c_str(), "missingLocales.sql", filesLocation);
+                        writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
                 }
                 // ACTION 2 END
                 return 1;
@@ -4281,7 +4281,7 @@ int main(int argc, char* argv[])
                     msg_delay("> DB: Fixing wildcards... \n");
 
                     // read existing update file
-                    std::string filesLocation = "work/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                     //writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
                     std::string updateQueries;
@@ -4403,7 +4403,7 @@ int main(int argc, char* argv[])
 
                     // write queries to file
                     if (!updateQueries.empty())
-                        writeToFile(updateQueries.c_str(), "missingTags.sql", filesLocation);
+                        writeToFile(updateQueries.c_str(), "missingTags_" + localeName(locale) + ".sql", filesLocation);
                 }
                 // ACTION 3 END
                 return 1;
@@ -4487,7 +4487,7 @@ int main(int argc, char* argv[])
                     msg_delay("> DB: Checking other expansions... \n");
 
                     // read existing update file
-                    std::string filesLocation = "work/" + expansionName(e) + "/" + localeName(locale) + "/" + typeName(TYPE_QUEST) + "/";
+                    std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(e) + "/" + typeName(TYPE_QUEST) + "/";
                     //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                     //writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
                     std::string updateQueries;
@@ -4704,7 +4704,7 @@ int main(int argc, char* argv[])
 
                     // write queries to file
                     if (!updateQueries.empty())
-                        writeToFile(updateQueries.c_str(), checkDiff ? "missingFromOtherExp.sql" : "missingFromOtherExpIncludeDiffEng.sql", filesLocation);
+                        writeToFile(updateQueries.c_str(), checkDiff ? "missingFromOtherExp_" + localeName(locale) + ".sql" : "missingFromOtherExpIncludeDiffEng_" + localeName(locale) + ".sql", filesLocation);
                 }
                 // ACTION 4 END
                 return 1;
