@@ -3445,7 +3445,7 @@ int main(int argc, char* argv[])
                             missingOfferText++;
                             missingQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qDbInfo->GetRequestItemText(e, 1), qDbInfo->GetRequestItemText()))
+                        if (IsSameString(qDbInfo->GetOfferRewardText(e, 1), qDbInfo->GetOfferRewardText()))
                         {
                             hasEngOfferText++;
                             engQuestText += "offer:" + std::to_string(qDbInfo->GetEntry()) + "\n";
