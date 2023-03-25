@@ -2122,7 +2122,7 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
     return NULL;
 }
 
-void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int questPartID, unsigned int locale = 0)
+void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int questPartID, unsigned int locale = 0, uint32 hotfix = 0)
 {
     //const char* quest_details;
     GumboTag tag = GUMBO_TAG_UNKNOWN;
@@ -2171,12 +2171,34 @@ void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int
         steps_back = 1;
         break;
     case 4: // RequestItemsText
+    if (hotfix == 1)
+    {
+        attr_name = "classes";
+        attr_value = "first";
+        between = true;
+        attr_second_name = "id";
+        attr_second_value = "data.mapper.objectiveTerms";
+    }
+    else
+    {
         attr_name = "id";
         attr_value = "lknlksndgg-progress";
+    }
         break;
     case 5: // OfferRewardText
+    if (hotfix == 1)
+    {
+        attr_name = "classes";
+        attr_value = "first";
+        between = true;
+        attr_second_name = "id";
+        attr_second_value = "data.mapper.objectiveTerms";
+    }
+    else
+    {
         attr_name = "id";
         attr_value = "lknlksndgg-completion";
+    }
         break;
     case 6: // EndText
         searchChildren = true;
@@ -2202,21 +2224,21 @@ void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int
     parse_details(query_result, node, tag, attr_name, attr_value, contents, between, attr_second_name, attr_second_value, attr_second_alt_value, steps_back, unique, hasChildren, preTag, preType, searchChildren, childIndex, fromEnd, ignoreContent);
 }
 
-std::string parse_quest(GumboNode* node, unsigned int questPartID, unsigned int locale = 1)
+std::string parse_quest(GumboNode* node, unsigned int questPartID, unsigned int locale = 1, uint32 hotfix = 0)
 {
     std::ostringstream query_result;
-    parse_quest(query_result, node, questPartID, locale);
+    parse_quest(query_result, node, questPartID, locale, hotfix);
     return query_result.str();
 }
 
-std::string ReadQuestText(GumboOutput* parsedPage, const std::string& questPart, uint32 locale)
+std::string ReadQuestText(GumboOutput* parsedPage, const std::string& questPart, uint32 locale, uint32 hotfix = 0)
 {
     std::ostringstream questText;
     uint32 questPartId = questTextId(questPart);
     if (!questPartId)
         return "";
 
-    return parse_quest(parsedPage->root, questPartId, locale);
+    return parse_quest(parsedPage->root, questPartId, locale, hotfix);
 }
 
 std::string LoadQuestText(DatabaseConnect* dbCon, uint32 id, const std::string& questPart, uint32 locale)
@@ -4998,12 +5020,17 @@ QuestStrings LoadQuestCacheStrings(const std::string &whPage, uint32 locale)
     // parse page
     auto parsedPage = GumboParsePage(whPage);
 
+    // hotfix for reqItemText or progress (works for both but is filtered on English DB check)
+    uint32 hotFixId = 0;
+    if (whPage.find("classes=\"first\"") != std::string::npos)
+        hotFixId = 1;
+
     // parse details
     qStrings.title = ReadQuestText(parsedPage, "title", locale);
     qStrings.objectives = ReadQuestText(parsedPage, "objectives", locale);
     qStrings.details = ReadQuestText(parsedPage, "details", locale);
-    qStrings.requestItemText = ReadQuestText(parsedPage, "requestItemText", locale);
-    qStrings.offerRewardText = ReadQuestText(parsedPage, "offerRewardText", locale);
+    qStrings.requestItemText = ReadQuestText(parsedPage, "requestItemText", locale, hotFixId);
+    qStrings.offerRewardText = ReadQuestText(parsedPage, "offerRewardText", locale, hotFixId);
     qStrings.endText = ReadQuestText(parsedPage, "endText", locale);
     // read list of objectives;
     std::string objList = ReadQuestText(parsedPage, "objectiveList", locale);
