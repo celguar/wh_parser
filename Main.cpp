@@ -365,11 +365,13 @@ void replaceRaceTag(std::string& theText, uint32 expansion, uint32 locale)
     nameTagsUp.emplace_back("<Race>");
     nameTagsUp.emplace_back("<Raza>");
     nameTagsUp.emplace_back("<Раса>");
+    nameTagsUp.emplace_back("<Volk>");
 
     std::vector<std::string> nameTagsLow;
     nameTagsLow.emplace_back("<race>");
     nameTagsLow.emplace_back("<raza>");
     nameTagsLow.emplace_back("<раса>");
+    nameTagsLow.emplace_back("<volk>");
 
     for (const auto& name : nameTagsUp)
     {
@@ -455,12 +457,14 @@ void replaceClassTag(std::string& theText, uint32 expansion, uint32 locale)
     nameTagsUp.emplace_back("<Clase>");
     nameTagsUp.emplace_back("<Classe>");
     nameTagsUp.emplace_back("<Класс>");
+    nameTagsUp.emplace_back("<Klasse>");
 
     std::vector<std::string> nameTagsLow;
     nameTagsLow.emplace_back("<class>");
     nameTagsLow.emplace_back("<clase>");
     nameTagsLow.emplace_back("<classe>");
     nameTagsLow.emplace_back("<класс>");
+    nameTagsLow.emplace_back("<klasse>");
 
     for (const auto& name : nameTagsUp)
     {
@@ -580,6 +584,8 @@ bool hasRaceTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = fal
         nameTags.emplace_back("<Raza>");
         nameTags.emplace_back("<раса>");
         nameTags.emplace_back("<Раса>");
+        nameTags.emplace_back("<volk>");
+        nameTags.emplace_back("<Volk>");
     }
 
     // find buggy russian tags
@@ -635,6 +641,8 @@ bool hasClassTag(QuestInfo* qInfo, const std::string& partName, bool dbOnly = fa
         nameTags.emplace_back("<clase>");
         nameTags.emplace_back("<Clase>");
         nameTags.emplace_back("<classe>");
+        nameTags.emplace_back("<klasse>");
+        nameTags.emplace_back("<Klasse>");
         nameTags.emplace_back("<Classe>");
         nameTags.emplace_back("<класс>");
         nameTags.emplace_back("<Класс>");
