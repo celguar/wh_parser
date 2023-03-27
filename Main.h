@@ -43,6 +43,22 @@ enum EntrySource
     SRC_DB = 2,
 };
 
+struct ItemPage
+{
+    uint32 entry;
+    std::string text;
+};
+
+struct ItemStrings
+{
+    std::string name;
+    std::string description;
+    std::vector<ItemPage> pages;
+
+    static bool IsMissingPages(const std::vector<ItemPage>& version1, const std::vector<ItemPage>& version2, std::vector<ItemPage>* version1MissingPages = nullptr, std::vector<ItemPage>* version2MissingPages = nullptr);
+    static bool HasSamePages(const std::vector<ItemPage>& version1, const std::vector<ItemPage>& version2, std::vector<std::pair<ItemPage, ItemPage>>* = nullptr);
+};
+
 struct QuestStrings
 {
     std::string title;
@@ -86,6 +102,7 @@ private:
 };
 
 typedef std::map<uint32, std::map<uint32, QuestStrings> > QuestStringsMap;
+typedef std::map<uint32, std::map<uint32, ItemStrings> > ItemStringsMap;
 
 class WowGameEntry
 {
@@ -125,14 +142,44 @@ private:
     EntrySource source;
 };
 
+ItemStrings LoadItemCacheStrings(const std::string& whPage, uint32 locale);
+
+class ItemInfo : public WowGameEntry
+{
+public:
+    explicit ItemInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO) : WowGameEntry(id, TYPE_ITEM, expansion, locale, src) {}
+
+public:
+    std::string GetName(uint32 expansion = 0, uint32 locale = 0);
+    std::string GetDescription(uint32 expansion = 0, uint32 locale = 0);
+    const std::vector<ItemPage>& GetPages(uint32 expansion = 0, uint32 locale = 0);
+    std::string GetItemPart(const std::string& iPart, uint32 expansion = 0, uint32 locale = 0);
+    void SetItemTexts(uint32 expansion, uint32 locale, ItemStrings iStrings) { itemTexts[expansion][locale] = std::move(iStrings); }
+
+private:
+    ItemStringsMap itemTexts;
+};
+
+class WowheadItemInfo : public ItemInfo
+{
+public:
+    explicit WowheadItemInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : ItemInfo(id, expansion, locale, SRC_WH) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+class DatabaseItemInfo : public ItemInfo
+{
+public:
+    explicit DatabaseItemInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : ItemInfo(id, expansion, locale, SRC_DB) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
 QuestStrings LoadQuestCacheStrings(const std::string& whPage, uint32 locale);
 
 class QuestInfo: public WowGameEntry
 {
 public:
     explicit QuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO) : WowGameEntry(id, TYPE_QUEST, expansion, locale, src) {}
-    // placeholder
-    //void LoadEntryData(uint32 expansion, uint32 locale) override;
 
 public:
     std::string GetTitle(uint32 expansion = 0, uint32 locale = 0);
@@ -144,6 +191,7 @@ public:
     std::string GetObjective(uint32 index, uint32 expansion = 0, uint32 locale = 0);
     std::string GetQuestPart(const std::string& qPart, uint32 expansion = 0, uint32 locale = 0);
     void SetQuestTexts(uint32 expansion, uint32 locale, QuestStrings qStrings) { questTexts[expansion][locale] = std::move(qStrings); }
+
 private:
     QuestStringsMap questTexts;
 };
@@ -161,7 +209,6 @@ public:
     explicit DatabaseQuestInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : QuestInfo(id, expansion, locale, SRC_DB) {}
     void LoadEntryData(uint32 expansion, uint32 locale) override;
 };
-
 
 class DataManager
 {
@@ -189,6 +236,8 @@ public:
     DatabaseConnect* GetCon(uint32 expansion) { return mysqlCon[expansion - 1]; }
     std::map<uint32, WowheadQuestInfo*> questWowheadInfoList;
     std::map<uint32, DatabaseQuestInfo*> questDatabaseInfoList;
+    std::map<uint32, WowheadItemInfo*> itemWowheadInfoList;
+    std::map<uint32, DatabaseItemInfo*> itemDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
     std::string getProjectName() const { return projectInfo.projectName; };
 
