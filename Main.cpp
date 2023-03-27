@@ -2746,7 +2746,71 @@ void GumboClosePage(GumboOutput* output)
     gumbo_destroy_output(&kGumboDefaultOptions, output);
 }
 
-std::vector<ItemPage> ReadItemPages(const std::string& whPage, const std::string& itemPart, uint32 locale)
+ItemStrings LoadItemFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
+{
+    ItemStrings itemStrings;
+    std::ostringstream command;
+    std::vector<std::string> itemText;
+    std::string itemColumns = itemAllColumns(locale);
+    std::string tableName = locale == 1 ? "item_template" : "locales_item";
+    command << "SELECT " << itemColumns << " FROM " << tableName << " WHERE entry = " << std::to_string(id);
+
+    if (locale == 1 && sDataMgr.getProjectName() == "vmangos")
+    {
+        command << " ORDER by patch DESC LIMIT 1";
+    }
+    if (!dbCon->GetDbStrings(command.str(), itemText, 2, true))
+    {
+        return itemStrings;
+    }
+
+    itemStrings.name = itemText[0];
+    itemStrings.description = itemText[1];
+
+    // Select pages
+    std::ostringstream command2;
+    command2 << "SELECT PageText FROM item_template WHERE entry = " << std::to_string(id);
+
+    int pageEntry;
+    if (!dbCon->GetDbInt(command2.str(), pageEntry, true))
+    {
+        return itemStrings;
+    }
+
+    const std::string itemPageTableName = locale == 1 ? "page_text" : "locales_page_text";
+    const std::string itemPageColumnName = locale == 1 ? "text" : "Text_loc" + std::to_string(localeRealId(locale));
+    bool nextPage = pageEntry > 0;
+    while (nextPage)
+    {
+        // Get the page text
+        std::string page;
+        std::ostringstream command3;
+        command3 << "SELECT " << itemPageColumnName << " FROM " << itemPageTableName << " WHERE entry = " << std::to_string(pageEntry);
+        if (!dbCon->GetDbString(command3.str(), page, true))
+        {
+            break;
+        }
+
+        ItemPage itemPage;
+        itemPage.entry = pageEntry;
+        itemPage.text = page;
+        itemStrings.pages.push_back(std::move(itemPage));
+
+        // Get the next page
+        std::ostringstream command4;
+        command4 << "SELECT next_page FROM page_text WHERE entry = " << std::to_string(pageEntry);
+        if (!dbCon->GetDbInt(command4.str(), pageEntry, true))
+        {
+            break;
+        }
+
+        nextPage = pageEntry > 0;
+    }
+
+    return itemStrings;
+}
+
+std::vector<ItemPage> ReadItemPages(const std::string& whPage, const std::string& itemPart, uint32 locale, uint32 expansion, uint32 itemId)
 {
     std::vector<ItemPage> pages;
 
@@ -2815,74 +2879,25 @@ std::vector<ItemPage> ReadItemPages(const std::string& whPage, const std::string
         }
     }
 
+    if (!pages.empty())
+    {
+        // Get the page entries from the database
+        auto DbConnect = sDataMgr.GetCon(expansion);
+        if (DbConnect && DbConnect->IsConnected() && DbConnect->IsEntryExistInDb(TYPE_ITEM, itemId))
+        {
+            ItemStrings dbItem = LoadItemFull(DbConnect, itemId, 1);
+
+            if (pages.size() == dbItem.pages.size())
+            {
+                for (uint8 i = 0; i < dbItem.pages.size(); i++)
+                {
+                    pages[i].entry = dbItem.pages[i].entry;
+                }
+            }
+        }
+    }
+
     return pages;
-}
-
-ItemStrings LoadItemFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
-{
-    ItemStrings itemStrings;
-    std::ostringstream command;
-    std::vector<std::string> itemText;
-    std::string itemColumns = itemAllColumns(locale);
-    std::string tableName = locale == 1 ? "item_template" : "locales_item";
-    command << "SELECT " << itemColumns << " FROM " << tableName << " WHERE entry = " << std::to_string(id);
-    
-    if (locale == 1 && sDataMgr.getProjectName() == "vmangos")
-    {
-        command << " ORDER by patch DESC LIMIT 1";
-    }
-    if (!dbCon->GetDbStrings(command.str(), itemText, 2, true))
-    {
-        return itemStrings;
-    }
-
-    itemStrings.name = itemText[0];
-    itemStrings.description = itemText[1];
-
-    // Select pages
-    std::ostringstream command2;
-    command2 << "SELECT PageText FROM item_template WHERE entry = " << std::to_string(id);
-
-    int pageEntry;
-    if (!dbCon->GetDbInt(command2.str(), pageEntry, true))
-    {
-        return itemStrings;
-    }
-
-    const std::string itemPageTableName = locale == 1 ? "page_text" : "locales_page_text";
-    const std::string itemPageColumnName = locale == 1 ? "text" : "Text_loc" + std::to_string(localeRealId(locale));
-    std::vector<ItemPage> itemPages;
-    bool nextPage = pageEntry > 0;
-    while (nextPage)
-    {
-        // Get the page text
-        std::string page;
-        std::ostringstream command3;
-        command3 << "SELECT " << itemPageColumnName << " FROM " << itemPageTableName << " WHERE entry = " << std::to_string(pageEntry);
-        if (!dbCon->GetDbString(command3.str(), page, true))
-        {
-            break;
-        }
-
-        ItemPage itemPage;
-        itemPage.entry = pageEntry;
-        itemPage.text = page;
-        itemPages.push_back(std::move(itemPage));
-
-        // Get the next page
-        std::ostringstream command4;
-        command4 << "SELECT next_page FROM page_text WHERE entry = " << std::to_string(pageEntry);
-        if (!dbCon->GetDbInt(command4.str(), pageEntry, true))
-        {
-            break;
-        }
-
-        nextPage = pageEntry > 0;
-    }
-
-    itemStrings.pages = itemPages;
-
-    return itemStrings;
 }
 
 WowheadItemInfo* LoadWowheadItemInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false)
@@ -6562,7 +6577,7 @@ QuestStrings LoadQuestDatabaseStrings(uint32 id, uint32 expansion = 1, uint32 lo
     return qStrings;
 }
 
-ItemStrings LoadItemCacheStrings(const std::string& whPage, uint32 locale)
+ItemStrings LoadItemCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion)
 {
     ItemStrings itemStrings;
 
@@ -6572,7 +6587,7 @@ ItemStrings LoadItemCacheStrings(const std::string& whPage, uint32 locale)
     // parse details
     itemStrings.name = ReadItemText(parsedPage, "name", locale);
     itemStrings.description = ReadItemText(parsedPage, "description", locale);
-    itemStrings.pages = ReadItemPages(whPage, "pages", locale);
+    itemStrings.pages = ReadItemPages(whPage, "pages", locale, expansion, id);
 
     // clear memory
     GumboClosePage(parsedPage);
@@ -6857,7 +6872,7 @@ void WowheadItemInfo::LoadEntryData(uint32 expansion, uint32 locale)
     if (cachePage.empty())
         return;
 
-    SetItemTexts(expansion, locale, LoadItemCacheStrings(cachePage, locale));
+    SetItemTexts(expansion, locale, LoadItemCacheStrings(GetEntry(), cachePage, locale, expansion));
     SetLoaded(expansion, locale, true);
 }
 
