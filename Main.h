@@ -43,20 +43,26 @@ enum EntrySource
     SRC_DB = 2,
 };
 
-struct ItemPage
+struct PageEntry
 {
     uint32 entry;
     std::string text;
+};
+
+static bool IsMissingPages(const std::vector<PageEntry>& version1, const std::vector<PageEntry>& version2, std::vector<PageEntry>* version1MissingPages = nullptr, std::vector<PageEntry>* version2MissingPages = nullptr);
+static bool HasSamePages(const std::vector<PageEntry>& version1, const std::vector<PageEntry>& version2, std::vector<std::pair<PageEntry, PageEntry>>* = nullptr);
+
+struct GameObjectStrings
+{
+    std::string name;
+    std::vector<PageEntry> pages;
 };
 
 struct ItemStrings
 {
     std::string name;
     std::string description;
-    std::vector<ItemPage> pages;
-
-    static bool IsMissingPages(const std::vector<ItemPage>& version1, const std::vector<ItemPage>& version2, std::vector<ItemPage>* version1MissingPages = nullptr, std::vector<ItemPage>* version2MissingPages = nullptr);
-    static bool HasSamePages(const std::vector<ItemPage>& version1, const std::vector<ItemPage>& version2, std::vector<std::pair<ItemPage, ItemPage>>* = nullptr);
+    std::vector<PageEntry> pages;
 };
 
 struct QuestStrings
@@ -103,6 +109,7 @@ private:
 
 typedef std::map<uint32, std::map<uint32, QuestStrings> > QuestStringsMap;
 typedef std::map<uint32, std::map<uint32, ItemStrings> > ItemStringsMap;
+typedef std::map<uint32, std::map<uint32, GameObjectStrings> > GameObjectStringsMap;
 
 class WowGameEntry
 {
@@ -142,7 +149,38 @@ private:
     EntrySource source;
 };
 
-ItemStrings LoadItemCacheStrings(const std::string& whPage, uint32 locale);
+GameObjectStrings LoadGameObjectCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion);
+
+class GameObjectInfo : public WowGameEntry
+{
+public:
+    explicit GameObjectInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO) : WowGameEntry(id, TYPE_OBJECT, expansion, locale, src) {}
+
+public:
+    std::string GetName(uint32 expansion = 0, uint32 locale = 0);
+    const std::vector<PageEntry>& GetPages(uint32 expansion = 0, uint32 locale = 0);
+    std::string GetGameObjectPart(const std::string& iPart, uint32 expansion = 0, uint32 locale = 0);
+    void SetGameObjectTexts(uint32 expansion, uint32 locale, GameObjectStrings iStrings) { gameObjectTexts[expansion][locale] = std::move(iStrings); }
+
+private:
+    GameObjectStringsMap gameObjectTexts;
+};
+
+class WowheadGameObjectInfo : public GameObjectInfo
+{
+public:
+    explicit WowheadGameObjectInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : GameObjectInfo(id, expansion, locale, SRC_WH) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+class DatabaseGameObjectInfo : public GameObjectInfo
+{
+public:
+    explicit DatabaseGameObjectInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : GameObjectInfo(id, expansion, locale, SRC_DB) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+ItemStrings LoadItemCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion);
 
 class ItemInfo : public WowGameEntry
 {
@@ -152,7 +190,7 @@ public:
 public:
     std::string GetName(uint32 expansion = 0, uint32 locale = 0);
     std::string GetDescription(uint32 expansion = 0, uint32 locale = 0);
-    const std::vector<ItemPage>& GetPages(uint32 expansion = 0, uint32 locale = 0);
+    const std::vector<PageEntry>& GetPages(uint32 expansion = 0, uint32 locale = 0);
     std::string GetItemPart(const std::string& iPart, uint32 expansion = 0, uint32 locale = 0);
     void SetItemTexts(uint32 expansion, uint32 locale, ItemStrings iStrings) { itemTexts[expansion][locale] = std::move(iStrings); }
 
@@ -238,6 +276,8 @@ public:
     std::map<uint32, DatabaseQuestInfo*> questDatabaseInfoList;
     std::map<uint32, WowheadItemInfo*> itemWowheadInfoList;
     std::map<uint32, DatabaseItemInfo*> itemDatabaseInfoList;
+    std::map<uint32, WowheadGameObjectInfo*> gameObjectWowheadInfoList;
+    std::map<uint32, DatabaseGameObjectInfo*> gameObjectDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
     std::string getProjectName() const { return projectInfo.projectName; };
 
