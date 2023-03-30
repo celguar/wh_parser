@@ -146,10 +146,17 @@ namespace StringHelper
     std::string RemoveStartAndEndQuotes(const std::string& input)
     {
         std::string output = input;
-        if (output.size() >= 2 && output.front() == '"' && output.back() == '"')
+        if (output.size() >= 2 && (output.front() == '"' || output.back() == '"'))
         {
-            output.erase(output.begin());
-            output.pop_back();
+            if (output.front() == '"')
+            {
+                output.erase(output.begin());
+            }
+            
+            if (output.back() == '"')
+            {
+                output.pop_back();
+            }
         }
 
         return output;
@@ -2832,9 +2839,13 @@ void parse_item(std::ostringstream& query_result, GumboNode* node, unsigned int 
 
     parse_details(query_result, node, tag, attr_name, attr_value, contents, between, attr_second_name, attr_second_value, attr_second_alt_value, steps_back, unique, hasChildren, preTag, preType, searchChildren, childIndex, fromEnd, ignoreContent);
 
-    // Remove quotes from description
+    
     if (itemPartID == 2)
     {
+        // Get the text between quotes
+        query_result.str(StringHelper::GetFirstStringBetween(query_result.str(), "\"", "\""));
+        
+        // Remove quotes from description
         query_result.str(StringHelper::RemoveStartAndEndQuotes(query_result.str()));
     }
 }
@@ -3050,7 +3061,7 @@ GameObjectStrings LoadGameObjectFull(DatabaseConnect* dbCon, uint32 id, uint32 l
     return gameObjectStrings;
 }
 
-std::vector<PageEntry> ReadPages(const std::string& whPage, uint32 locale)
+std::vector<PageEntry> ReadPages(const std::string& whPage, uint32 expansion, uint32 locale)
 {
     std::vector<PageEntry> pages;
 
@@ -3063,7 +3074,7 @@ std::vector<PageEntry> ReadPages(const std::string& whPage, uint32 locale)
             pagesString = StringHelper::RemoveStartAndEndQuotes(pagesString);
             pagesString = StringHelper::DecodeHTMLString(pagesString);
             pagesString = StringHelper::IsoToUtf8(pagesString);
-            pagesString = StringHelper::EncodeWoWString(pagesString, locale);
+            pagesString = StringHelper::EncodeWoWString(pagesString, expansion, locale);
 
             std::vector<std::string> pagesStr = StringHelper::SplitString(pagesString, "\",\"");
             for (std::string& page : pagesStr)
@@ -3613,7 +3624,7 @@ DatabaseQuestInfo* LoadDatabaseQuestInfo(uint32 id, uint32 expansion, uint32 loc
 
 std::vector<PageEntry> ReadItemPages(const std::string& whPage, uint32 locale, uint32 expansion, uint32 itemId)
 {
-    std::vector<PageEntry> pages = ReadPages(whPage, locale);
+    std::vector<PageEntry> pages = ReadPages(whPage, expansion, locale);
     if (!pages.empty())
     {
         // Get the page entries from the database
@@ -3640,7 +3651,7 @@ std::vector<PageEntry> ReadItemPages(const std::string& whPage, uint32 locale, u
 
 std::vector<PageEntry> ReadGameObjectPages(const std::string& whPage, uint32 locale, uint32 expansion, uint32 gameObjectId)
 {
-    std::vector<PageEntry> pages = ReadPages(whPage, locale);
+    std::vector<PageEntry> pages = ReadPages(whPage, expansion, locale);
     if (!pages.empty())
     {
         // Get the page entries from the database
@@ -6075,12 +6086,9 @@ int main(int argc, char* argv[])
                         // Spanish
                         if (locale == 6)
                         {
-                            ignoreItems =
-                            {
+                            ignoreItems = { 1318, 6766, 12627, 15293, 18565, 18566, 19054, 19055, 22822, 2450, 5417, 5418 };
 
-                            };
-
-                            ignoreItemPages = {  };
+                            ignoreItemPages = { 54, 62, 2819, 2888, 308, 316, 696, 697, 812, 891, 1191, 2465, 2435, 2432, 2434, 2464, 2453, 2447, 2448, 2513, 22822 };
                         }
 
                         // use CN for TW from wowhead
@@ -6264,7 +6272,7 @@ int main(int argc, char* argv[])
                                 73940, 141853, 103774, 179706, 21004
                             };
 
-                            ignoreGameObjectPages = { 1432, 1751, 1760, 1753, 1755, 2175, 2177, 2311, 287, 288, 289, 2731 };
+                            ignoreGameObjectPages = { 1432, 1751, 1760, 1753, 1755, 2175, 2177, 2311, 287, 288, 289, 2891, 2731, 2905, 2925 };
                         }
 
                         // use CN for TW from wowhead
