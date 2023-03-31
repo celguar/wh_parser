@@ -34,6 +34,7 @@ enum TypeId
     TYPE_NPC   = 2,
     TYPE_ITEM = 3,
     TYPE_OBJECT = 4,
+    TYPE_ACHIEVEMENT = 5
 };
 
 enum EntrySource
@@ -52,10 +53,25 @@ struct PageEntry
 static bool IsMissingPages(const std::vector<PageEntry>& version1, const std::vector<PageEntry>& version2, std::vector<PageEntry>* version1MissingPages = nullptr, std::vector<PageEntry>* version2MissingPages = nullptr);
 static bool HasSamePages(const std::vector<PageEntry>& version1, const std::vector<PageEntry>& version2, std::vector<std::pair<PageEntry, PageEntry>>* = nullptr);
 
+struct AchievementCriteria
+{
+    uint32 entry;
+    std::string description;
+};
+
+static bool HasSameCriterias(const std::vector<AchievementCriteria>& version1, const std::vector<AchievementCriteria>& version2, std::vector<std::pair<AchievementCriteria, AchievementCriteria>>* differentCriteria = nullptr);
+
 struct GameObjectStrings
 {
     std::string name;
     std::vector<PageEntry> pages;
+};
+
+struct AchievementStrings
+{
+    std::string name;
+    std::string description;
+    std::vector<AchievementCriteria> criterias;
 };
 
 struct ItemStrings
@@ -110,6 +126,7 @@ private:
 typedef std::map<uint32, std::map<uint32, QuestStrings> > QuestStringsMap;
 typedef std::map<uint32, std::map<uint32, ItemStrings> > ItemStringsMap;
 typedef std::map<uint32, std::map<uint32, GameObjectStrings> > GameObjectStringsMap;
+typedef std::map<uint32, std::map<uint32, AchievementStrings> > AchievementStringsMap;
 
 class WowGameEntry
 {
@@ -177,6 +194,38 @@ class DatabaseGameObjectInfo : public GameObjectInfo
 {
 public:
     explicit DatabaseGameObjectInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : GameObjectInfo(id, expansion, locale, SRC_DB) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+AchievementStrings LoadAchievementCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion);
+
+class AchievementInfo : public WowGameEntry
+{
+public:
+    explicit AchievementInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0, EntrySource src = SRC_NO) : WowGameEntry(id, TYPE_ACHIEVEMENT, expansion, locale, src) {}
+
+public:
+    std::string GetName(uint32 expansion = 0, uint32 locale = 0);
+    std::string GetDescription(uint32 expansion = 0, uint32 locale = 0);
+    const std::vector<AchievementCriteria>& GetCriterias(uint32 expansion = 0, uint32 locale = 0);
+    std::string GetAchievementPart(const std::string& iPart, uint32 expansion = 0, uint32 locale = 0);
+    void SetAchievementTexts(uint32 expansion, uint32 locale, AchievementStrings iStrings) { achievementTexts[expansion][locale] = std::move(iStrings); }
+
+private:
+    AchievementStringsMap achievementTexts;
+};
+
+class WowheadAchievementInfo : public AchievementInfo
+{
+public:
+    explicit WowheadAchievementInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : AchievementInfo(id, expansion, locale, SRC_WH) {}
+    void LoadEntryData(uint32 expansion, uint32 locale) override;
+};
+
+class DatabaseAchievementInfo : public AchievementInfo
+{
+public:
+    explicit DatabaseAchievementInfo(uint32 id, uint32 expansion = 0, uint32 locale = 0) : AchievementInfo(id, expansion, locale, SRC_DB) {}
     void LoadEntryData(uint32 expansion, uint32 locale) override;
 };
 
@@ -276,6 +325,8 @@ public:
     std::map<uint32, DatabaseQuestInfo*> questDatabaseInfoList;
     std::map<uint32, WowheadItemInfo*> itemWowheadInfoList;
     std::map<uint32, DatabaseItemInfo*> itemDatabaseInfoList;
+    std::map<uint32, WowheadAchievementInfo*> achievementWowheadInfoList;
+    std::map<uint32, DatabaseAchievementInfo*> achievementDatabaseInfoList;
     std::map<uint32, WowheadGameObjectInfo*> gameObjectWowheadInfoList;
     std::map<uint32, DatabaseGameObjectInfo*> gameObjectDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }

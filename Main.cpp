@@ -717,6 +717,8 @@ std::string typeName(TypeId typeId)
             return "item";
         case TYPE_OBJECT:
             return "object";
+        case TYPE_ACHIEVEMENT:
+            return "achievement";
         default:
             return "quest";
     }
@@ -763,6 +765,16 @@ uint32 gameObjectTextId(const std::string& partName)
 {
     if (partName == "name")
         return 1;
+
+    return 0;
+}
+
+uint32 achievementTextId(const std::string& partName)
+{
+    if (partName == "name")
+        return 1;
+    else if (partName == "description")
+        return 2;
 
     return 0;
 }
@@ -869,6 +881,83 @@ std::string gameObjectAllColumns(uint32 locale = 1)
         return "name";
 
     return "name_loc" + std::to_string(localeRealId(locale));
+}
+
+std::string getAchievementLocale(uint32 locale)
+{
+    std::string localeName;
+    switch (locale)
+    {
+        case 1:
+        {
+            localeName = "enUS";
+            break;
+        }
+
+        case 2:
+        {
+            localeName = "koKR";
+            break;
+        }
+
+        case 3:
+        {
+            localeName = "frFR";
+            break;
+        }
+
+        case 4:
+        {
+            localeName = "deDE";
+            break;
+        }
+
+        case 5:
+        {
+            localeName = "zhCN";
+            break;
+        }
+
+        case 6:
+        {
+            localeName = "esES";
+            break;
+        }
+
+        case 7:
+        {
+            localeName = "ruRU";
+            break;
+        }
+
+        case 8:
+        {
+            localeName = "zhTW";
+            break;
+        }
+
+        default: break;
+    }
+
+    return localeName;
+}
+
+std::string achievementColumnName(const std::string& partName, uint32 locale = 1)
+{
+    const std::string localeName = getAchievementLocale(locale);
+    if (partName == "name")
+        return "Title_Lang_" + localeName;
+    if (partName == "description")
+        return "Description_Lang_" + localeName;
+
+    return "";
+}
+
+std::string achievementAllColumns(uint32 locale = 1)
+{
+    const std::string localeName = getAchievementLocale(locale);
+    return "Title_Lang_" + localeName +
+        ", Description_Lang_" + localeName;
 }
 
 const char* dbName(uint32 expansion, std::string projectName = "cmangos")
@@ -1174,6 +1263,30 @@ std::string updateQuestFromTextQueryNoTags(const std::string& replace, DatabaseQ
     return command;
 }
 
+std::string updateAchievementFromWhQuery(WowheadAchievementInfo* whInfo, DatabaseAchievementInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
+{
+    if (!whInfo || !dbInfo || !whInfo->IsLoaded(whInfo->GetCurExpansion(), whInfo->GetCurLocale()) || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
+        return "";
+
+    std::string tableName = "achievement_dbc";
+    std::string colName = achievementColumnName(partName, locale);
+    // fix tw => cn
+    std::string whText = whInfo->GetAchievementPart(partName, expansion, locale == 8 ? 5 : locale);
+    if (whText.empty())
+        return "";
+
+    // replace nameTags
+    whText = StringHelper::EncodeWoWString(whText, expansion, locale);
+
+    char* tStr = new char[strlen(whText.c_str()) * 2 + 1];
+    mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, whText.c_str(), strlen(whText.c_str()));
+    std::string replaceString(tStr);
+    delete[] tStr;
+
+    std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE ID = '" + std::to_string(dbInfo->GetEntry()) + "';";
+    return command;
+}
+
 std::string updateItemFromWhQuery(WowheadItemInfo* whInfo, DatabaseItemInfo* dbInfo, const std::string& partName, uint32 expansion, uint32 locale)
 {
     if (!whInfo || !dbInfo || !whInfo->IsLoaded(whInfo->GetCurExpansion(), whInfo->GetCurLocale()) || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
@@ -1249,6 +1362,23 @@ std::string updateItemPageFromTextQueryNoTags(const std::string& replace, uint32
     delete[] tStr;
 
     std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE entry = '" + std::to_string(pageEntry) + "';";
+    return command;
+}
+
+std::string updateAchievementCriteriaFromTextQueryNoTags(const std::string& replace, uint32 criteriaEntry, DatabaseAchievementInfo* dbInfo, uint32 expansion, uint32 locale)
+{
+    if (!dbInfo || replace.empty() || !dbInfo->IsLoaded(dbInfo->GetCurExpansion(), dbInfo->GetCurLocale()))
+        return "";
+
+    std::string tableName = "achievement_criteria_dbc";
+    std::string colName = "Description_Lang_" + getAchievementLocale(locale);
+
+    char* tStr = new char[strlen(replace.c_str()) * 2 + 1];
+    mysql_real_escape_string(sDataMgr.GetCon(expansion)->GetMysql(), tStr, replace.c_str(), strlen(replace.c_str()));
+    std::string replaceString(tStr);
+    delete[] tStr;
+
+    std::string command = "UPDATE " + tableName + " SET " + colName + " = '" + replaceString + "' WHERE ID = '" + std::to_string(criteriaEntry) + "';";
     return command;
 }
 
@@ -1773,6 +1903,9 @@ bool DatabaseConnect::IsEntryExistInDb(TypeId type, uint32 id)
         if (type == TYPE_OBJECT)
             command = "SELECT entry FROM gameobject_template WHERE entry = " + std::to_string(id);
 
+        if (type == TYPE_ACHIEVEMENT)
+            command = "SELECT ID FROM achievement_dbc WHERE ID = " + std::to_string(id);
+
         int result;
         return GetDbInt(command, result, true);
     }
@@ -2020,6 +2153,10 @@ std::string load_WH_page(TypeId type, unsigned int id, unsigned int& error_code,
         break;
     }
 
+    // Achievements are only available from wotlk+
+    if (type == TYPE_ACHIEVEMENT && expansion < 3)
+        expansion = 3;
+
     // select expansion prefix
     std::string expansionPrefix = "classic";
     if (expansion == 2)
@@ -2031,7 +2168,16 @@ std::string load_WH_page(TypeId type, unsigned int id, unsigned int& error_code,
 
     cpr::Response response = cpr::Get(cpr::Url{ (std::string("https://") + std::string("wowhead.com/") + expansionPrefix + localePrefix + "/" + typeName(type) + "=" + std::to_string(id))}, cpr::UserAgent{"Mozilla / 5.0 (Windows NT 10.0; Win64; x64) AppleWebKit / 537.36 (KHTML, like Gecko) Chrome / 99.0.4844.51 Safari / 537.36"});
     error_code = response.status_code;
-    return response.text;
+
+    std::string pageText = response.text;
+
+    // Fix for achievement pages
+    if (type == TYPE_ACHIEVEMENT)
+    {
+        pageText = StringHelper::ReplaceString(pageText, "<h1 class=\"heading-size-1 h1-icon\">", "<h1 class=\"heading-size-1\">");
+    }
+
+    return pageText;
 }
 
 bool isNotFound(const std::string& wh_page)
@@ -2203,7 +2349,7 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
 
 #ifdef SKIP_NONDB
                 // skip loading pages not in DB
-                if ((type == TYPE_OBJECT || type == TYPE_ITEM || type == TYPE_NPC) && sDataMgr.IsDbOn(e))
+                if ((type == TYPE_OBJECT || type == TYPE_ITEM || type == TYPE_NPC || type == TYPE_ACHIEVEMENT) && sDataMgr.IsDbOn(e))
                 {
                     auto DbCon = sDataMgr.GetCon(e);
                     if (DbCon)
@@ -2914,6 +3060,54 @@ std::string ReadGameObjectText(GumboOutput* parsedPage, const std::string& itemP
     return parse_game_object(parsedPage->root, gameObjectPartId, locale);
 }
 
+void parse_achievement(std::ostringstream& query_result, GumboNode* node, unsigned int achievementPartID, unsigned int locale = 0)
+{
+    GumboTag tag = GUMBO_TAG_UNKNOWN;
+    GumboTag preTag = GUMBO_TAG_UNKNOWN;
+    GumboNodeType preType = GUMBO_NODE_ELEMENT;
+    const char* attr_name = NULL;
+    const char* attr_value = NULL;
+    const char* contents = NULL;
+    bool between = false;
+    const char* attr_second_name = NULL;
+    const char* attr_second_value = NULL;
+    const char* attr_second_alt_value = NULL;
+    unsigned int steps_back = 0;
+    bool unique = false;
+    bool hasChildren = true;
+    bool searchChildren = false;
+    bool fromEnd = false;
+    unsigned int childIndex = 0;
+    const char* ignoreContent = NULL;
+
+    switch (achievementPartID)
+    {
+    default:
+    case 1: // Name
+        attr_name = "class";
+        attr_value = "heading-size-1";
+        break;
+    }
+
+    parse_details(query_result, node, tag, attr_name, attr_value, contents, between, attr_second_name, attr_second_value, attr_second_alt_value, steps_back, unique, hasChildren, preTag, preType, searchChildren, childIndex, fromEnd, ignoreContent);
+}
+
+std::string parse_achievement(GumboNode* node, unsigned int achievementPartID, unsigned int locale = 1)
+{
+    std::ostringstream query_result;
+    parse_achievement(query_result, node, achievementPartID, locale);
+    return query_result.str();
+}
+
+std::string ReadAchievementText(GumboOutput* parsedPage, const std::string& itemPart, uint32 locale)
+{
+    uint32 achievementPartID = achievementTextId(itemPart);
+    if (!achievementPartID)
+        return "";
+
+    return parse_achievement(parsedPage->root, achievementPartID, locale);
+}
+
 GumboOutput* GumboParsePage(const std::string& page)
 {
     return gumbo_parse(page.c_str());
@@ -3059,6 +3253,49 @@ GameObjectStrings LoadGameObjectFull(DatabaseConnect* dbCon, uint32 id, uint32 l
     }
 
     return gameObjectStrings;
+}
+
+AchievementStrings LoadAchievementFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
+{
+    AchievementStrings achievementStrings;
+
+    std::vector<std::string> achievementTexts;
+    std::ostringstream command;
+    std::string achievementColumns = achievementAllColumns(locale);
+    std::string tableName = "achievement_dbc";
+    command << "SELECT " << achievementColumns << " FROM " << tableName << " WHERE ID = " << std::to_string(id);
+
+    if (!dbCon->GetDbStrings(command.str(), achievementTexts, 2, true))
+    {
+        return achievementStrings;
+    }
+
+    achievementStrings.name = achievementTexts[0];
+    achievementStrings.description = achievementTexts[1];
+
+    int criteriasCount = 0;
+    std::string criteriaTableName = "achievement_criteria_dbc";
+    std::string criteriaColumns = "ID, Description_Lang_" + getAchievementLocale(locale);
+    std::ostringstream command2;
+    command2 << "SELECT COUNT(*) FROM " << criteriaTableName << " WHERE Achievement_Id = " << std::to_string(id);
+    if (dbCon->GetDbInt(command2.str(), criteriasCount) && criteriasCount > 0)
+    {
+        for (uint32 i = 0; i < criteriasCount; i++)
+        {
+            std::vector<std::string> criteriasData;
+            std::ostringstream command3;
+            command3 << "SELECT " << criteriaColumns << " FROM " << criteriaTableName << " WHERE Achievement_Id = " << std::to_string(id) << " LIMIT " << i << ", 1";
+            if (dbCon->GetDbStrings(command3.str(), criteriasData, 2, true))
+            {
+                AchievementCriteria criteria;
+                criteria.entry = std::stoi(criteriasData[0]);
+                criteria.description = criteriasData[1];
+                achievementStrings.criterias.emplace_back(std::move(criteria));
+            }
+        }
+    }
+
+    return achievementStrings;
 }
 
 std::vector<PageEntry> ReadPages(const std::string& whPage, uint32 expansion, uint32 locale)
@@ -3364,7 +3601,7 @@ DatabaseItemInfo* LoadDatabaseItemInfo(uint32 id, uint32 expansion, uint32 local
             if (locale > 1)
                 msg_delay("> DB " + typeName(TYPE_ITEM) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Translation Not Found! \n");
             else
-                msg_delay("> DB " + typeName(TYPE_ITEM) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Quest Not Found! \n");
+                msg_delay("> DB " + typeName(TYPE_ITEM) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Item Not Found! \n");
         }
 
         delete itemInfo;
@@ -3373,6 +3610,164 @@ DatabaseItemInfo* LoadDatabaseItemInfo(uint32 id, uint32 expansion, uint32 local
 
     if (!isLoaded) sDataMgr.itemDatabaseInfoList[id] = itemInfo;
     return itemInfo;
+}
+
+WowheadAchievementInfo* LoadWowheadAchievementInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false)
+{
+    if (!id)
+        return nullptr;
+
+    if (locale == 8)
+        locale = 5;
+
+    // check if already saved
+    if (expansion && locale && sDataMgr.achievementWowheadInfoList[id])
+    {
+        WowheadAchievementInfo* savedAchievementInfo = sDataMgr.achievementWowheadInfoList[id];
+        if (savedAchievementInfo->IsLoaded(expansion, locale))
+        {
+            savedAchievementInfo->SetCurExpansion(expansion);
+            savedAchievementInfo->SetCurLocale(locale);
+            return savedAchievementInfo;
+        }
+        else
+        {
+            savedAchievementInfo->LoadEntryData(expansion, locale);
+            if (savedAchievementInfo->IsLoaded(expansion, locale))
+            {
+                savedAchievementInfo->SetCurExpansion(expansion);
+                savedAchievementInfo->SetCurLocale(locale);
+                return savedAchievementInfo;
+            }
+            else
+                return nullptr;
+        }
+    }
+
+    WowheadAchievementInfo* achievementInfo = nullptr;
+    bool isLoaded = false;
+    if (sDataMgr.achievementWowheadInfoList[id])
+    {
+        isLoaded = true;
+        achievementInfo = sDataMgr.achievementWowheadInfoList[id];
+    }
+    else
+        achievementInfo = new WowheadAchievementInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+
+    if (onlyOneVersion && expansion && locale)
+        achievementInfo->LoadEntryData(expansion, locale);
+    else if (expansion && !locale)
+    {
+        for (auto i = 1; i <= MAX_LOCALE; ++i)
+            achievementInfo->LoadEntryData(expansion, i);
+    }
+    else if (!expansion && locale)
+    {
+        for (auto i = 1; i <= MAX_EXPANSION; ++i)
+            achievementInfo->LoadEntryData(i, locale);
+    }
+    else
+        achievementInfo->LoadEntryDataAllVersions();
+
+    // if not loaded english classic
+    if (!achievementInfo->IsLoaded(expansion ? expansion : 1, locale ? locale : 1))
+    {
+        bool silent = false;
+        if (!silent)
+        {
+            if (locale != 1)
+                msg_delay("> WH " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Translation Not Found! \n");
+            else
+                msg_delay("> WH " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Achievement Not Found! \n");
+        }
+
+        // erase after checking above
+        if (!isLoaded)
+        {
+            delete achievementInfo;
+        }
+
+        return nullptr;
+    }
+
+    if (!isLoaded) sDataMgr.achievementWowheadInfoList[id] = achievementInfo;
+    return achievementInfo;
+}
+
+DatabaseAchievementInfo* LoadDatabaseAchievementInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false, bool silent = false)
+{
+    if (!id)
+        return nullptr;
+
+    bool allLocales = false;
+    if (!expansion && !locale)
+        allLocales = true;
+
+    // check if already saved
+    if (expansion && locale && sDataMgr.achievementDatabaseInfoList[id])
+    {
+        DatabaseAchievementInfo* savedAchievementInfo = sDataMgr.achievementDatabaseInfoList[id];
+        if (savedAchievementInfo->IsLoaded(expansion, locale))
+        {
+            savedAchievementInfo->SetCurExpansion(expansion);
+            savedAchievementInfo->SetCurLocale(locale);
+            return savedAchievementInfo;
+        }
+        else
+        {
+            savedAchievementInfo->LoadEntryData(expansion, locale);
+            if (savedAchievementInfo->IsLoaded(expansion, locale))
+            {
+                savedAchievementInfo->SetCurExpansion(expansion);
+                savedAchievementInfo->SetCurLocale(locale);
+                return savedAchievementInfo;
+            }
+            else
+                return nullptr;
+        }
+    }
+
+    DatabaseAchievementInfo* achievementInfo = nullptr;
+    bool isLoaded = false;
+    if (sDataMgr.achievementDatabaseInfoList[id])
+    {
+        isLoaded = true;
+        achievementInfo = sDataMgr.achievementDatabaseInfoList[id];
+    }
+    else
+        achievementInfo = new DatabaseAchievementInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+
+    if (onlyOneVersion && expansion && locale)
+        achievementInfo->LoadEntryData(expansion, locale);
+    else if (expansion && !locale)
+    {
+        for (auto i = 1; i <= MAX_LOCALE; ++i)
+            achievementInfo->LoadEntryData(expansion, i);
+    }
+    else if (!expansion && locale)
+    {
+        for (auto i = 1; i <= MAX_EXPANSION; ++i)
+            achievementInfo->LoadEntryData(i, locale);
+    }
+    else
+        achievementInfo->LoadEntryDataAllVersions();
+
+    if (!achievementInfo->IsLoaded(expansion ? expansion : 1, locale ? locale : 1))
+    {
+        if (!silent)
+        {
+            if (locale > 1)
+                msg_delay("> DB " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Translation Not Found! \n");
+            else
+                msg_delay("> DB " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(id) + "-" + localeName(locale ? locale : 1) + ": Achievement Not Found! \n");
+        }
+
+        delete achievementInfo;
+        return nullptr;
+    }
+
+    if (!isLoaded) sDataMgr.achievementDatabaseInfoList[id] = achievementInfo;
+    return achievementInfo;
 }
 
 DatabaseGameObjectInfo* LoadDatabaseGameObjectInfo(uint32 id, uint32 expansion, uint32 locale, bool onlyOneVersion = false, bool silent = false)
@@ -3777,6 +4172,7 @@ int main(int argc, char* argv[])
             std::cout << "2) NPC \n";
             std::cout << "3) Item \n";
             std::cout << "4) GameObject \n";
+            std::cout << "5) Achievement \n";
             std::cin >> type;
 
             // Choose expansion
@@ -4149,6 +4545,40 @@ int main(int argc, char* argv[])
                     }
                 }
             }
+            // Achievement
+            if (type == 5)
+            {
+                // load all locales, set current for quick access
+                WowheadAchievementInfo* achievementInfo = LoadWowheadAchievementInfo(entry, expansion, locale, true);
+                if (!achievementInfo)
+                {
+                    msg_delay("> WH " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Wowhead! \n");
+                    return 0;
+                }
+                // Load English in all cases
+                if (achievementInfo->GetCurLocale() != 1)
+                    achievementInfo->LoadEntryData(expansion, 1);
+
+                DatabaseAchievementInfo* achievementDbInfo = LoadDatabaseAchievementInfo(entry, expansion, locale, true);
+                if (!achievementDbInfo)
+                {
+                    msg_delay("> DB " + typeName(TYPE_ACHIEVEMENT) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                    return 0;
+                }
+                // Load English in all cases
+                if (achievementDbInfo->GetCurLocale() != 1)
+                    achievementDbInfo->LoadEntryData(expansion, 1);
+
+                msg_delay("\n> WH Name: " + achievementInfo->GetName() + "\n");
+                if (achievementInfo->GetCurLocale() != 1) msg_delay("\n> WH Name EN: " + achievementInfo->GetName(expansion, 1) + "\n");
+                if (achievementDbInfo) msg_delay("\n> DB Name: " + achievementDbInfo->GetName() + "\n");
+                if (achievementDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Name EN: " + achievementDbInfo->GetName(expansion, 1) + "\n");
+                msg_delay("\n> WH Description: " + achievementInfo->GetDescription() + "\n");
+                if (achievementInfo->GetCurLocale() != 1) msg_delay("\n> WH Description EN: " + achievementInfo->GetDescription(expansion, 1) + "\n");
+                if (achievementDbInfo) msg_delay("\n> DB Description: " + achievementDbInfo->GetDescription() + "\n");
+                if (achievementDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Description EN: " + achievementDbInfo->GetDescription(expansion, 1) + "\n");
+
+            }
         }
         if (activity == 2) // cache multiple pages
         {
@@ -4158,6 +4588,7 @@ int main(int argc, char* argv[])
             std::cout << "2) NPC \n";
             std::cout << "3) Item \n";
             std::cout << "4) Gameobject \n";
+            std::cout << "5) Achievement \n";
             std::cin >> type;
 
             // only quest is supported
@@ -5475,11 +5906,13 @@ int main(int argc, char* argv[])
                 std::cout << "2) Quests \n";
                 std::cout << "3) Items \n";
                 std::cout << "4) Game Objects \n";
+                std::cout << "5) Achievements \n";
                 std::cin >> checkLocalesOption;
 
                 const bool checkQuests = (checkLocalesOption == 1) || (checkLocalesOption == 2);
                 const bool checkItems = (checkLocalesOption == 1) || (checkLocalesOption == 3);
                 const bool checkGameObjects = (checkLocalesOption == 1) || (checkLocalesOption == 4);
+                const bool checkAchievements = (checkLocalesOption == 1) || (checkLocalesOption == 5);
 
                 // print wh cache stats
                 msg_delay("\n");
@@ -5499,6 +5932,11 @@ int main(int argc, char* argv[])
                 maxGameObjectId[0] = 0;
                 maxGameObjectId[1] = 0;
                 maxGameObjectId[2] = 0;
+
+                int maxAchievementId[MAX_EXPANSION];
+                maxAchievementId[0] = 0;
+                maxAchievementId[1] = 0;
+                maxAchievementId[2] = 0;
 
                 uint32 iterations = 0;
                 uint32 totalIterations = 0;
@@ -5599,6 +6037,33 @@ int main(int argc, char* argv[])
                                 }
                             }
                         }
+
+                        if (checkAchievements)
+                        {
+                            std::string cacheAchievementLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/achievement/";
+                            if (std::filesystem::is_directory(cacheAchievementLocation))
+                            {
+                                auto achievementCounter = 0;
+                                auto itemDirIter = std::filesystem::directory_iterator(cacheAchievementLocation);
+                                for (auto& fl : itemDirIter)
+                                {
+                                    if (fl.is_regular_file())
+                                    {
+                                        ++achievementCounter;
+                                        const std::filesystem::path& p(fl.path());
+                                        uint32 achievementID = stoi(p.stem().string());
+                                        if ((int)achievementID > maxAchievementId[e - 1])
+                                            maxAchievementId[e - 1] = (int)achievementID;
+                                    }
+                                }
+                                msg_delay(">  Achievements %s total: %d, max id: %d \n", localeName(i).c_str(), achievementCounter, maxAchievementId[e - 1]);
+
+                                if (localeId == i)
+                                {
+                                    totalIterations += achievementCounter;
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -5613,6 +6078,10 @@ int main(int argc, char* argv[])
                 maxGameObjectId[0] = 0;
                 maxGameObjectId[1] = 0;
                 maxGameObjectId[2] = 0;
+
+                maxAchievementId[0] = 0;
+                maxAchievementId[1] = 0;
+                maxAchievementId[2] = 0;
 
                 // print db data
                 msg_delay("\n");
@@ -5675,6 +6144,14 @@ int main(int argc, char* argv[])
                         DbConnect->GetDbInt("SELECT MAX(entry) FROM gameobject_template", maxGameObjectId[e - 1]);
                         msg_delay(">  Game Objects %s total: %d, max id: %d \n", localeName(1).c_str(), gameObjectCounter, maxGameObjectId[e - 1]);
                     }
+
+                    if (checkAchievements)
+                    {
+                        int achievementsCounter = 0;
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM achievement_dbc", achievementsCounter);
+                        DbConnect->GetDbInt("SELECT MAX(ID) FROM achievement_dbc", maxAchievementId[e - 1]);
+                        msg_delay(">  Achievements %s total: %d, max id: %d \n", localeName(1).c_str(), achievementsCounter, maxAchievementId[e - 1]);
+                    }
                 }
 
                 // do action
@@ -5735,6 +6212,16 @@ int main(int argc, char* argv[])
                     uint32 updatedGameObjectPageText = 0;
 
                     uint32 missingDbGameObject = 0; // wh exist, db not exist
+
+                    uint32 missingAchievementName = 0;
+                    uint32 missingAchievementDescription = 0;
+                    uint32 missingAchievementCriteriaDescription = 0;
+
+                    uint32 updatedAchievementName = 0;
+                    uint32 updatedAchievementDescription = 0;
+                    uint32 updatedAchievementCriteriaDescription = 0;
+
+                    uint32 missingDbAchievement = 0; // wh exist, db not exist
 
                     // Quests
                     if(checkQuests)
@@ -6408,6 +6895,185 @@ int main(int argc, char* argv[])
                             writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
                     }
 
+                    // Achievements
+                    if (checkAchievements)
+                    {
+                        // List of achievements that are badly translated in wowhead
+                        std::set<uint32> ignoreAchievements;
+
+                        // use CN for TW from wowhead
+                        uint32 localeId = locale;
+                        if (localeId == 8)
+                            localeId = 5;
+
+                        std::string cacheEngLocation = "cache/" + expansionName(e) + "/" + localeName(1) + "/" + typeName(TYPE_ACHIEVEMENT) + "/";
+                        std::string cacheLocLocation = "cache/" + expansionName(e) + "/" + localeName(localeId) + "/" + typeName(TYPE_ACHIEVEMENT) + "/";
+                        if (!std::filesystem::is_directory(cacheEngLocation))
+                            continue;
+                        if (!std::filesystem::is_directory(cacheLocLocation))
+                            continue;
+
+                        // read existing update file
+                        std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_ACHIEVEMENT) + "/";
+                        std::string updateQueries;
+
+                        auto dirIter = std::filesystem::directory_iterator(cacheLocLocation);
+                        for (auto& fl : dirIter)
+                        {
+                            if (fl.is_regular_file())
+                            {
+                                const std::filesystem::path& p(fl.path());
+                                uint32 achievementID = stoi(p.stem().string());
+
+                                iterations++;
+                                if ((iterations % 10) == 0)
+                                {
+                                    std::stringstream message;
+                                    uint32 iterationPct = (iterations * 100) / totalIterations;
+                                    message << "   " << std::to_string(iterationPct) << "%c (" << std::to_string(iterations) << "/" + std::to_string(totalIterations) << ")\n";
+                                    msg_nodelay(message.str(), '\u0025');
+                                }
+
+                                // load both eng and locale
+                                WowheadAchievementInfo* achievementWhEngInfo = LoadWowheadAchievementInfo(achievementID, e, 1, true);
+                                if (!achievementWhEngInfo)
+                                    continue;
+
+                                WowheadAchievementInfo* achievementWhLocInfo = LoadWowheadAchievementInfo(achievementID, e, localeId, true);
+                                if (!achievementWhLocInfo)
+                                    continue;
+
+                                // load english first
+                                DatabaseAchievementInfo* achievementDbLocInfo = LoadDatabaseAchievementInfo(achievementID, e, 1, true, true);
+                                if (!achievementDbLocInfo)
+                                {
+                                    missingDbAchievement++;
+                                    continue;
+                                }
+
+                                achievementDbLocInfo = LoadDatabaseAchievementInfo(achievementID, e, locale, true, true);
+                                if (!achievementDbLocInfo)
+                                    continue;
+
+                                if (ignoreAchievements.find(achievementID) == ignoreAchievements.end())
+                                {
+                                    // Achievement name
+                                    if (!achievementDbLocInfo->GetName(e, 1).empty())
+                                    {
+                                        if (!achievementWhLocInfo->GetName().empty())
+                                        {
+                                            if (achievementDbLocInfo->GetName().empty())
+                                            {
+                                                if (!IsSameString(achievementWhLocInfo->GetName(e, 1), achievementWhLocInfo->GetName(), true))
+                                                {
+                                                    missingAchievementName++;
+                                                    updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "name", e, locale) + "\n";
+                                                }
+                                            }
+                                            else if (!ignoreDifferentVersion)
+                                            {
+                                                if (!IsSameString(achievementWhLocInfo->GetName(), achievementDbLocInfo->GetName(), true))
+                                                {
+                                                    const std::string message = "Achievement (" + std::to_string(achievementWhLocInfo->GetEntry()) + ") name";
+                                                    if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, achievementWhLocInfo->GetName(), achievementDbLocInfo->GetName()))
+                                                    {
+                                                        updatedAchievementName++;
+                                                        updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "name", e, locale) + "\n";
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Achievement description
+                                    if (!achievementDbLocInfo->GetDescription(e, 1).empty())
+                                    {
+                                        if (!achievementWhLocInfo->GetDescription().empty())
+                                        {
+                                            if (achievementDbLocInfo->GetDescription().empty())
+                                            {
+                                                if (!IsSameString(achievementWhLocInfo->GetDescription(e, 1), achievementWhLocInfo->GetDescription(), true))
+                                                {
+                                                    missingAchievementDescription++;
+                                                    updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "description", e, locale) + "\n";
+                                                }
+                                            }
+                                            else if (!ignoreDifferentVersion)
+                                            {
+                                                if (!IsSameString(achievementWhLocInfo->GetDescription(), achievementDbLocInfo->GetDescription(), true))
+                                                {
+                                                    const std::string message = "Achievement (" + std::to_string(achievementWhLocInfo->GetEntry()) + ") description";
+                                                    if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, achievementWhLocInfo->GetDescription(), achievementDbLocInfo->GetDescription()))
+                                                    {
+                                                        updatedAchievementDescription++;
+                                                        updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "description", e, locale) + "\n";
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Achievement criterias
+                                    if (!achievementDbLocInfo->GetCriterias(e, 1).empty())
+                                    {
+                                        if (!achievementWhLocInfo->GetCriterias().empty())
+                                        {
+                                            if (achievementDbLocInfo->GetCriterias().empty())
+                                            {
+                                                if (!HasSameCriterias(achievementWhLocInfo->GetCriterias(e, 1), achievementWhLocInfo->GetCriterias()))
+                                                {
+                                                    for (const AchievementCriteria& criteria : achievementWhLocInfo->GetCriterias(e, locale))
+                                                    {
+                                                        missingAchievementCriteriaDescription++;
+                                                        updateQueries += updateAchievementCriteriaFromTextQueryNoTags(criteria.description, criteria.entry, achievementDbLocInfo, e, locale) + "\n";
+                                                    }
+                                                }
+                                            }
+                                            else if (!ignoreDifferentVersion)
+                                            {
+                                                if (achievementDbLocInfo->GetCriterias().size() == 1)
+                                                {
+                                                    const AchievementCriteria& criteria = achievementDbLocInfo->GetCriterias()[0];
+                                                    if (criteria.description != achievementWhLocInfo->GetDescription())
+                                                    {
+                                                        const std::string message = "Achievement Criteria (" + std::to_string(criteria.entry) + ")";
+                                                        if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, achievementWhLocInfo->GetDescription(), criteria.description))
+                                                        {
+                                                            updatedAchievementCriteriaDescription++;
+                                                            updateQueries += updateAchievementCriteriaFromTextQueryNoTags(achievementWhLocInfo->GetDescription(), criteria.entry, achievementDbLocInfo, e, locale) + "\n";
+                                                        }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    /* TO DO: Parse and cross reference multiple criteria from wowhead
+                                                    std::vector<std::pair<AchievementCriteria, AchievementCriteria>> differentCriterias;
+                                                    if (!HasSameCriterias(achievementWhLocInfo->GetCriterias(), achievementDbLocInfo->GetCriterias(), &differentCriterias))
+                                                    {
+                                                        for (const std::pair<AchievementCriteria, AchievementCriteria>& pageDifference : differentCriterias)
+                                                        {
+                                                            const std::string message = "Achievement Criteria (" + std::to_string(pageDifference.first.entry) + ")";
+                                                            if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, pageDifference.first.description, pageDifference.second.description))
+                                                            {
+                                                                updatedGameObjectPageText++;
+                                                                updateQueries += updateAchievementCriteriaFromTextQueryNoTags(pageDifference.first.description, pageDifference.first.entry, achievementDbLocInfo, e, locale) + "\n";
+                                                            }
+                                                        }
+                                                    }
+                                                    */
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // write queries to file
+                        if (!updateQueries.empty())
+                            writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
+                    }
+
                     if (checkQuests)
                     {
                         // print results
@@ -6469,6 +7135,25 @@ int main(int argc, char* argv[])
 
                         msg_delay(">   Updated Name: %d \n", updatedGameObjectName);
                         msg_delay(">   Updated Page Texts: %d \n", updatedGameObjectPageText);
+                    }
+
+                    if (checkAchievements)
+                    {
+                        // print results
+                        msg_delay("\n\n");
+
+                        msg_delay(">   Achievements Stats:\n");
+
+                        if (missingDbItem)
+                            msg_delay(">   Missing Achievements in DB: %d \n\n", missingDbAchievement);
+
+                        msg_delay(">   Added Name: %d \n", missingAchievementName);
+                        msg_delay(">   Added Description: %d \n", missingAchievementDescription);
+                        msg_delay(">   Added Criteria Description: %d \n", missingAchievementCriteriaDescription);
+
+                        msg_delay(">   Updated Name: %d \n", updatedAchievementName);
+                        msg_delay(">   Updated Description: %d \n", updatedAchievementDescription);
+                        msg_delay(">   Updated Criteria Description: %d \n", updatedAchievementCriteriaDescription);
                     }
                 }
                 // ACTION 2 END
@@ -7501,6 +8186,44 @@ GameObjectStrings LoadGameObjectDatabaseStrings(uint32 id, uint32 expansion = 1,
     return LoadGameObjectFull(DbConnect, id, locale);
 }
 
+AchievementStrings LoadAchievementCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion)
+{
+    AchievementStrings achievementStrings;
+
+    // parse page
+    auto parsedPage = GumboParsePage(whPage);
+
+    // parse details
+    achievementStrings.name = ReadAchievementText(parsedPage, "name", locale);
+
+    std::string description = StringHelper::GetFirstStringBetween(whPage, "heading-size-1", "heading-size-3");
+    description = StringHelper::GetFirstStringBetween(description, "</script>", "<script");
+    description = StringHelper::ReplaceString(description, "\n", "");
+    achievementStrings.description = StringHelper::ReplaceString(description, "\n", "");
+
+    DatabaseAchievementInfo* achievementDb = LoadDatabaseAchievementInfo(id, expansion, locale, true);
+    if (achievementDb)
+    {
+        achievementStrings.criterias = achievementDb->GetCriterias(expansion, locale);
+    }
+
+    // clear memory
+    GumboClosePage(parsedPage);
+
+    return achievementStrings;
+}
+
+AchievementStrings LoadAchievementDatabaseStrings(uint32 id, uint32 expansion = 1, uint32 locale = 1)
+{
+    AchievementStrings achievementStrings;
+
+    auto DbConnect = sDataMgr.GetCon(expansion);
+    if (!DbConnect || !DbConnect->IsConnected() || !DbConnect->IsEntryExistInDb(TYPE_ACHIEVEMENT, id))
+        return achievementStrings;
+
+    return LoadAchievementFull(DbConnect, id, locale);
+}
+
 ItemStrings LoadItemCacheStrings(uint32 id, const std::string& whPage, uint32 locale, uint32 expansion)
 {
     ItemStrings itemStrings;
@@ -7875,6 +8598,27 @@ bool HasSamePages(const std::vector<PageEntry>& version1, const std::vector<Page
     return samePages;
 }
 
+bool HasSameCriterias(const std::vector<AchievementCriteria>& version1, const std::vector<AchievementCriteria>& version2, std::vector<std::pair<AchievementCriteria, AchievementCriteria>>* differentCriteria /*= nullptr*/)
+{
+    bool sameCriterias = version1.size() == version2.size();
+    if (sameCriterias)
+    {
+        for (uint8 i = 0; i < version1.size(); i++)
+        {
+            if (!IsSameString(version1[i].description, version2[i].description))
+            {
+                sameCriterias = false;
+                if (differentCriteria)
+                {
+                    differentCriteria->push_back(std::make_pair(version1[i], version2[i]));
+                }
+            }
+        }
+    }
+
+    return sameCriterias;
+}
+
 std::string GameObjectInfo::GetName(uint32 expansion /*= 0*/, uint32 locale /*= 0*/)
 {
     if (expansion == 0 || locale == 0)
@@ -7917,5 +8661,60 @@ void DatabaseGameObjectInfo::LoadEntryData(uint32 expansion, uint32 locale)
 
     GameObjectStrings gameObjectStrings = LoadGameObjectDatabaseStrings(GetEntry(), expansion, locale);
     SetGameObjectTexts(expansion, locale, gameObjectStrings);
+    SetLoaded(expansion, locale, true);
+}
+
+std::string AchievementInfo::GetName(uint32 expansion /*= 0*/, uint32 locale /*= 0*/)
+{
+    if (expansion == 0 || locale == 0)
+        return achievementTexts[GetCurExpansion()][GetCurLocale()].name;
+    else
+        return achievementTexts[expansion][locale].name;
+}
+
+std::string AchievementInfo::GetDescription(uint32 expansion /*= 0*/, uint32 locale /*= 0*/)
+{
+    if (expansion == 0 || locale == 0)
+        return achievementTexts[GetCurExpansion()][GetCurLocale()].description;
+    else
+        return achievementTexts[expansion][locale].description;
+}
+
+const std::vector<AchievementCriteria>& AchievementInfo::GetCriterias(uint32 expansion /*= 0*/, uint32 locale /*= 0*/)
+{
+    if (expansion == 0 || locale == 0)
+        return achievementTexts[GetCurExpansion()][GetCurLocale()].criterias;
+    else
+        return achievementTexts[expansion][locale].criterias;
+}
+
+std::string AchievementInfo::GetAchievementPart(const std::string& iPart, uint32 expansion /*= 0*/, uint32 locale /*= 0*/)
+{
+    if (iPart == "name")
+        return GetName(expansion, locale);
+    if (iPart == "description")
+        return GetDescription(expansion, locale);
+
+    return "";
+}
+
+void WowheadAchievementInfo::LoadEntryData(uint32 expansion, uint32 locale)
+{
+    std::string cachePage = loadPageOrCache(TYPE_ACHIEVEMENT, GetEntry(), expansion, locale, true);
+    if (cachePage.empty())
+        return;
+
+    SetAchievementTexts(expansion, locale, LoadAchievementCacheStrings(GetEntry(), cachePage, locale, expansion));
+    SetLoaded(expansion, locale, true);
+}
+
+void DatabaseAchievementInfo::LoadEntryData(uint32 expansion, uint32 locale)
+{
+    auto DbConnect = sDataMgr.GetCon(expansion);
+    if (DbConnect && DbConnect->IsConnected() && !DbConnect->IsEntryExistInDb(TYPE_ACHIEVEMENT, GetEntry()))
+        return;
+
+    AchievementStrings gameObjectStrings = LoadAchievementDatabaseStrings(GetEntry(), expansion, locale);
+    SetAchievementTexts(expansion, locale, gameObjectStrings);
     SetLoaded(expansion, locale, true);
 }
