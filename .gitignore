@@ -1,1 +1,4 @@
 /Runtime/cache/
+/Runtime/
+/cmake-build-debug-visual-studio/
+/.idea/
