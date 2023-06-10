@@ -3,3 +3,4 @@
 /build/
 /cmake-build-debug-visual-studio/
 /.idea/
+/cmake-build-debug-x64/
