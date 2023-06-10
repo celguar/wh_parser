@@ -535,6 +535,37 @@ namespace StringHelper
                 }
             }
         }
+        // Russian
+        if (locale == 7)
+        {
+            // Select all gender strings
+            std::vector<std::string> genderTags;
+            std::regex pattern(R"(<[^/<>]*\/[^<>]*>)");
+            for (auto it = std::sregex_iterator(theText.begin(), theText.end(), pattern); it != std::sregex_iterator(); ++it)
+            {
+                if (!ContainsString(it->str(), "</") && !ContainsString(it->str(), "< /") && !StringHelper::ContainsString(it->str(), "/>") && !StringHelper::ContainsString(it->str(), "/ >"))
+                {
+                    genderTags.push_back(it->str());
+                }
+            }
+
+            // Replace them with the correct syntax
+            for (std::string& genderTag : genderTags)
+            {
+                std::vector<std::string> genderWords = SplitString(genderTag, "/");
+                if (genderWords.size() == 2)
+                {
+                    // Remove the "<" and ">" from the gender words
+                    genderWords[0].erase(genderWords[0].begin());
+                    genderWords[1].pop_back();
+
+                    theText = ReplaceString(theText, genderTag, "$G" + genderWords[0] + ":" + genderWords[1] + ";");
+
+                    // remove :c, not sure what it's for
+                    //theText = ReplaceString(theText, ":c", "");
+                }
+            }
+        }
     }
 
     std::string EncodeWoWString(const std::string& input, uint32 expansion = 0, uint32 locale = 0)
@@ -687,6 +718,10 @@ std::string localeName(unsigned int locId)
             return "ru";
         case 8:
             return "tw";
+        case 10:
+            return "pt";
+        case 11:
+            return "it";
         default:
             return "";
     }
@@ -960,7 +995,7 @@ std::string achievementAllColumns(uint32 locale = 1)
         ", Description_Lang_" + localeName;
 }
 
-const char* dbName(uint32 expansion, std::string projectName = "cmangos")
+const char* dbName(uint32 expansion, const std::string& projectName = "cmangos")
 {
     if (expansion == 1 && projectName == "vmangos")
         return "mangos";
@@ -1006,6 +1041,7 @@ bool hasGenderTag(std::string& theText, bool dbOnly = false, uint32 expansion = 
     if (!dbOnly)
     {
         std::regex pattern(R"(<[^/<>]*\/[^<>]*>)");
+
         for (auto it = std::sregex_iterator(theText.begin(), theText.end(), pattern); it != std::sregex_iterator(); ++it)
         {
             if (!StringHelper::ContainsString(it->str(), "</") && !StringHelper::ContainsString(it->str(), "< /") && !StringHelper::ContainsString(it->str(), "/>") && !StringHelper::ContainsString(it->str(), "/ >"))
@@ -1156,7 +1192,7 @@ bool hasClassTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0
     return std::any_of(nameTags.begin(), nameTags.end(), [theText](const std::string& str){return theText.find(str) != std::string::npos;});
 }
 
-bool IsSameString(const std::string& text1, const std::string& text2, bool replaceTags = false)
+bool IsSameString(const std::string& text1, const std::string& text2, uint32 locale = 1, bool replaceTags = false)
 {
     // do not compare empty strings here
     if (text1.empty() && text2.empty())
@@ -1168,8 +1204,8 @@ bool IsSameString(const std::string& text1, const std::string& text2, bool repla
     // expensive
     if (replaceTags)
     {
-        std::string text1Encoded = StringHelper::EncodeWoWString(text1, 1, 1);
-        std::string text2Encoded = StringHelper::EncodeWoWString(text2, 1, 1);
+        std::string text1Encoded = StringHelper::EncodeWoWString(text1, 1, locale);
+        std::string text2Encoded = StringHelper::EncodeWoWString(text2, 1, locale);
         return text1Encoded == text2Encoded;
     }
 
@@ -1179,7 +1215,7 @@ bool IsSameString(const std::string& text1, const std::string& text2, bool repla
 bool ShouldOverrideDifference(const std::string& name, const std::string& wowhead, const std::string& local)
 {
     unsigned int choice;
-    std::cout << "\nA different version has been found for the " << name << ":\n";
+    std::cout << "\nA different version has been found for the " << name << ":\n\n";
 
     std::string localVersion = StringHelper::ReplaceString(local, "$B", "\n");
     std::string wowheadVersion = StringHelper::EncodeWoWString(wowhead);
@@ -1500,11 +1536,11 @@ std::string FindAltText(DatabaseQuestInfo* dbInfo, const std::string& partName, 
             continue;
 
         // skip if locales are same as EN text
-        if(IsSameString(expText, expTextEng, true))
+        if(IsSameString(expText, expTextEng, locale, true))
             continue;
 
         // not needed if skipDiff is true
-        if(!skipDiff && IsSameString(expText, origTextEng, true))
+        if(!skipDiff && IsSameString(expText, origTextEng, locale,true))
             continue;
 
         altText = expText;
@@ -2151,6 +2187,12 @@ std::string load_WH_page(TypeId type, unsigned int id, unsigned int& error_code,
     case 7:
         localePrefix = "/ru";
         break;
+    case 10:
+        localePrefix = "/pt";
+        break;
+    case 11:
+        localePrefix = "/it";
+        break;
     }
 
     // Achievements are only available from wotlk+
@@ -2271,9 +2313,12 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                 continue;
 
             bool noEnglishPage = false; // speed up missing quests process
-            for (auto i = 1; i < 7 + 1; ++i) // locales
+            for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
             {
                 if (locale != 0 && i != locale)
+                    continue;
+
+                if (localeName(i).empty() || localeName(i) == "tw" || localeName(i) == "pt" || localeName(i) == "it")
                     continue;
 
                 if (noEnglishPage)
@@ -2285,10 +2330,10 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                 std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(type) + "/";
                 std::string wh_page = readFromFile(cacheLocation + std::to_string(min_id) + ".txt");
                 if (!wh_page.empty())
-                    msg_delay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
+                    msg_nodelay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
                 else
                 {
-                    std::string page = loadPageOrCache(type, min_id, e, i, true);
+                    std::string page = loadPageOrCache(type, min_id, e, i, false);
                     if (!page.empty())
                         msg_delay("\n> " + typeName(type) + " #" + std::to_string(min_id) + " " + expansionName(e) + "-" + localeName(i));
                     else
@@ -2364,9 +2409,12 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
 #endif
 
                 bool noEnglishPage = false; // speed up missing quests process
-                for (auto i = 1; i < 7 + 1; ++i) // locales
+                for (auto i = 1; i <= MAX_LOCALE; ++i) // locales
                 {
                     if (locale != 0 && i != locale)
+                        continue;
+
+                    if (localeName(i).empty() || localeName(i) == "tw" || localeName(i) == "pt" || localeName(i) == "it")
                         continue;
 
                     if (noEnglishPage)
@@ -2378,7 +2426,7 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                     std::string cacheLocation = "cache/" + expansionName(e) + "/" + localeName(i) + "/" + typeName(type) + "/";
                     std::string wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
                     if (!wh_page.empty())
-                        msg_delay_set("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...", 10);
+                        msg_nodelay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
                     else
                     {
                         std::string page = loadPageOrCache(type, id, e, i, true);
@@ -3141,7 +3189,10 @@ ItemStrings LoadItemFull(DatabaseConnect* dbCon, uint32 id, uint32 locale)
 
     // Select pages
     std::ostringstream command2;
-    command2 << "SELECT PageText FROM item_template WHERE entry = " << std::to_string(id);
+    if (sDataMgr.getProjectName() == "vmangos")
+        command2 << "SELECT page_text FROM item_template WHERE entry = " << std::to_string(id);
+    else
+        command2 << "SELECT PageText FROM item_template WHERE entry = " << std::to_string(id);
 
     int pageEntry;
     if (!dbCon->GetDbInt(command2.str(), pageEntry, true))
@@ -3882,7 +3933,7 @@ WowheadQuestInfo* LoadWowheadQuestInfo(uint32 id, uint32 expansion, uint32 local
 
     WowheadQuestInfo* qInfo = nullptr;
     bool isLoaded = false;
-    if (sDataMgr.questDatabaseInfoList[id])
+    if (sDataMgr.questWowheadInfoList[id])
     {
         isLoaded = true;
         qInfo = sDataMgr.questWowheadInfoList[id];
@@ -3974,6 +4025,7 @@ DatabaseQuestInfo* LoadDatabaseQuestInfo(uint32 id, uint32 expansion, uint32 loc
     }
     else
         qInfo = new DatabaseQuestInfo(id, expansion ? expansion : 1, locale ? locale : 1);
+
     // set default expansion or english
     //auto qInfo = new DatabaseQuestInfo(id, expansion ? expansion : 1, locale ? locale : 1);
     if (onlyOneVersion && expansion && locale)
@@ -4616,6 +4668,8 @@ int main(int argc, char* argv[])
             std::cout << "5) Chinese (LOC 4 + 5) \n";
             std::cout << "6) Spanish (LOC 6 + 7) \n";
             std::cout << "7) Russian (LOC 8)\n";
+            std::cout << "10) Portugues (LOC 8)\n";
+            std::cout << "11) Italian (LOC 8)\n";
             std::cin >> locale;
 
             // entry
@@ -4856,7 +4910,7 @@ int main(int argc, char* argv[])
                             missingTitle++;
                             missingQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetTitle(e, 1), qWhInfo->GetTitle(), true))
+                        if (IsSameString(qWhInfo->GetTitle(e, 1), qWhInfo->GetTitle(), i, true))
                         {
                             hasEngTitle++;
                             engQuestText += "title:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -4867,7 +4921,7 @@ int main(int argc, char* argv[])
                             missingEndText++;
                             missingQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetEndText(e, 1), qWhInfo->GetEndText(), true))
+                        if (IsSameString(qWhInfo->GetEndText(e, 1), qWhInfo->GetEndText(), i,true))
                         {
                             hasEngEndText++;
                             engQuestText += "endText:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -4903,7 +4957,7 @@ int main(int argc, char* argv[])
                             missingObjText++;
                             missingQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetObjectives(e, 1), qWhInfo->GetObjectives(), true))
+                        if (IsSameString(qWhInfo->GetObjectives(e, 1), qWhInfo->GetObjectives(), i, true))
                         {
                             hasEngObjText++;
                             engQuestText += "objective:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -4939,7 +4993,7 @@ int main(int argc, char* argv[])
                             missingReqText++;
                             missingQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetRequestItemText(e, 1), qWhInfo->GetRequestItemText(), true))
+                        if (IsSameString(qWhInfo->GetRequestItemText(e, 1), qWhInfo->GetRequestItemText(), i, true))
                         {
                             hasEngReqText++;
                             engQuestText += "reqItem:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -4975,7 +5029,7 @@ int main(int argc, char* argv[])
                             missingOfferText++;
                             missingQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetOfferRewardText(e, 1), qWhInfo->GetOfferRewardText(), true))
+                        if (IsSameString(qWhInfo->GetOfferRewardText(e, 1), qWhInfo->GetOfferRewardText(), i, true))
                         {
                             hasEngOfferText++;
                             engQuestText += "offer:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -5011,7 +5065,7 @@ int main(int argc, char* argv[])
                             missingDetails++;
                             missingQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetDetails(e, 1), qWhInfo->GetDetails(), true))
+                        if (IsSameString(qWhInfo->GetDetails(e, 1), qWhInfo->GetDetails(), i, true))
                         {
                             hasEngDetails++;
                             engQuestText += "details:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -5048,7 +5102,7 @@ int main(int argc, char* argv[])
                             missingObjective1++;
                             missingQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetObjective(0, e, 1), qWhInfo->GetObjective(0), true))
+                        if (IsSameString(qWhInfo->GetObjective(0, e, 1), qWhInfo->GetObjective(0), i, true))
                         {
                             hasEngObjective1++;
                             engQuestText += "obj1:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -5059,7 +5113,7 @@ int main(int argc, char* argv[])
                             missingObjective2++;
                             missingQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetObjective(1, e, 1), qWhInfo->GetObjective(1), true))
+                        if (IsSameString(qWhInfo->GetObjective(1, e, 1), qWhInfo->GetObjective(1), i, true))
                         {
                             hasEngObjective2++;
                             engQuestText += "obj2:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -5070,7 +5124,7 @@ int main(int argc, char* argv[])
                             missingObjective3++;
                             missingQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetObjective(2, e, 1), qWhInfo->GetObjective(2), true))
+                        if (IsSameString(qWhInfo->GetObjective(2, e, 1), qWhInfo->GetObjective(2), i, true))
                         {
                             hasEngObjective3++;
                             engQuestText += "obj3:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -5081,7 +5135,7 @@ int main(int argc, char* argv[])
                             missingObjective4++;
                             missingQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
                         }
-                        if (IsSameString(qWhInfo->GetObjective(3, e, 1), qWhInfo->GetObjective(3), true))
+                        if (IsSameString(qWhInfo->GetObjective(3, e, 1), qWhInfo->GetObjective(3), i, true))
                         {
                             hasEngObjective4++;
                             engQuestText += "obj4:" + std::to_string(qWhInfo->GetEntry()) + "\n";
@@ -6254,13 +6308,9 @@ int main(int argc, char* argv[])
                                 const std::filesystem::path &p(fl.path());
                                 uint32 qID = stoi(p.stem().string());
 
-                                // load both eng and locale
-                                WowheadQuestInfo* qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
-                                if (!qWhEngInfo)
-                                    continue;
-                                WowheadQuestInfo* qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
-                                if (!qWhLocInfo)
-                                    continue;
+                                // load both eng and locale (later)
+                                WowheadQuestInfo* qWhEngInfo = nullptr;//LoadWowheadQuestInfo(qID, e, 1, true);
+                                WowheadQuestInfo* qWhLocInfo = nullptr;//LoadWowheadQuestInfo(qID, e, localeId, true);
 
                                 // load english first
                                 DatabaseQuestInfo* qDbLocInfo = LoadDatabaseQuestInfo(qID, e, 1, true, true);
@@ -6285,13 +6335,26 @@ int main(int argc, char* argv[])
                                 // use database english as proof that text should exist
                                 // TODO fix wowhead parsing of quests that have no details
 
-                                if (!qDbLocInfo->GetTitle(e, 1).empty())
+                                if (!qDbLocInfo->GetTitle(e, 1).empty() && (qDbLocInfo->GetTitle().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (qWhEngInfo == nullptr)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetTitle().empty())
                                     {
                                         if (qDbLocInfo->GetTitle().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetTitle(e, 1), qWhLocInfo->GetTitle(), true))
+                                            if (!IsSameString(qWhLocInfo->GetTitle(e, 1), qWhLocInfo->GetTitle(), locale, true))
                                             {
                                                 missingQuestTitle++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "title", e, locale) + "\n";
@@ -6299,7 +6362,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetTitle(), qDbLocInfo->GetTitle(), true))
+                                            if (!IsSameString(qWhLocInfo->GetTitle(), qDbLocInfo->GetTitle(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") Title";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetTitle(), qDbLocInfo->GetTitle()))
@@ -6312,13 +6375,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetEndText(e, 1).empty())
+                                if (!qDbLocInfo->GetEndText(e, 1).empty() && (qDbLocInfo->GetEndText().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetEndText().empty())
                                     {
                                         if (qDbLocInfo->GetEndText().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetEndText(e, 1), qWhLocInfo->GetEndText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetEndText(e, 1), qWhLocInfo->GetEndText(), locale, true))
                                             {
                                                 missingQuestEndText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "endText", e, locale) + "\n";
@@ -6326,7 +6402,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetEndText(), qDbLocInfo->GetEndText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetEndText(), qDbLocInfo->GetEndText(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") End Text";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetEndText(), qDbLocInfo->GetEndText()))
@@ -6339,13 +6415,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetObjectives(e, 1).empty())
+                                if (!qDbLocInfo->GetObjectives(e, 1).empty() && (qDbLocInfo->GetObjectives().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetObjectives().empty())
                                     {
                                         if (qDbLocInfo->GetObjectives().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjectives(e, 1), qWhLocInfo->GetObjectives(), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjectives(e, 1), qWhLocInfo->GetObjectives(), locale, true))
                                             {
                                                 missingQuestObjText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
@@ -6353,7 +6442,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjectives(), qDbLocInfo->GetObjectives(), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjectives(), qDbLocInfo->GetObjectives(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") Objectives";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetObjectives(), qDbLocInfo->GetObjectives()))
@@ -6366,13 +6455,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetRequestItemText(e, 1).empty())
+                                if (!qDbLocInfo->GetRequestItemText(e, 1).empty() && (qDbLocInfo->GetRequestItemText().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetRequestItemText().empty())
                                     {
                                         if (qDbLocInfo->GetRequestItemText().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetRequestItemText(e, 1), qWhLocInfo->GetRequestItemText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetRequestItemText(e, 1), qWhLocInfo->GetRequestItemText(), locale, true))
                                             {
                                                 missingQuestReqText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "requestItemText", e, locale) + "\n";
@@ -6380,7 +6482,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetRequestItemText(), qDbLocInfo->GetRequestItemText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetRequestItemText(), qDbLocInfo->GetRequestItemText(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") requestItemText";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetRequestItemText(), qDbLocInfo->GetRequestItemText()))
@@ -6393,13 +6495,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetOfferRewardText(e, 1).empty())
+                                if (!qDbLocInfo->GetOfferRewardText(e, 1).empty() && (qDbLocInfo->GetOfferRewardText().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetOfferRewardText().empty())
                                     {
                                         if (qDbLocInfo->GetOfferRewardText().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetOfferRewardText(e, 1), qWhLocInfo->GetOfferRewardText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetOfferRewardText(e, 1), qWhLocInfo->GetOfferRewardText(), locale, true))
                                             {
                                                 missingQuestOfferText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "offerRewardText", e, locale) + "\n";
@@ -6407,7 +6522,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetOfferRewardText(), qDbLocInfo->GetOfferRewardText(), true))
+                                            if (!IsSameString(qWhLocInfo->GetOfferRewardText(), qDbLocInfo->GetOfferRewardText(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") offerRewardText";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetOfferRewardText(), qDbLocInfo->GetOfferRewardText()))
@@ -6420,13 +6535,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetDetails(e, 1).empty())
+                                if (!qDbLocInfo->GetDetails(e, 1).empty() && (qDbLocInfo->GetDetails().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetDetails().empty())
                                     {
                                         if (qDbLocInfo->GetDetails().empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetDetails(e, 1), qWhLocInfo->GetDetails(), true))
+                                            if (!IsSameString(qWhLocInfo->GetDetails(e, 1), qWhLocInfo->GetDetails(), locale, true))
                                             {
                                                 missingQuestDetails++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "details", e, locale) + "\n";
@@ -6434,7 +6562,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetDetails(), qDbLocInfo->GetDetails(), true))
+                                            if (!IsSameString(qWhLocInfo->GetDetails(), qDbLocInfo->GetDetails(), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") details";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetDetails(), qDbLocInfo->GetDetails()))
@@ -6448,13 +6576,26 @@ int main(int argc, char* argv[])
                                 }
 
                                 // Objective 1-4
-                                if (!qDbLocInfo->GetObjective(0, e, 1).empty())
+                                if (!qDbLocInfo->GetObjective(0, e, 1).empty() && (qDbLocInfo->GetObjective(0).empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetObjective(0).empty())
                                     {
                                         if (qDbLocInfo->GetObjective(0).empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(0, e, 1), qWhLocInfo->GetObjective(0), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(0, e, 1), qWhLocInfo->GetObjective(0), locale, true))
                                             {
                                                 missingQuestObjective1++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText1", e, locale) + "\n";
@@ -6462,7 +6603,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(0), qDbLocInfo->GetObjective(0), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(0), qDbLocInfo->GetObjective(0), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") objectiveText1";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetObjective(0), qDbLocInfo->GetObjective(0)))
@@ -6475,13 +6616,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetObjective(1, e, 1).empty())
+                                if (!qDbLocInfo->GetObjective(1, e, 1).empty() && (qDbLocInfo->GetObjective(1).empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetObjective(1).empty())
                                     {
                                         if (qDbLocInfo->GetObjective(1).empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(1, e, 1), qWhLocInfo->GetObjective(1), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(1, e, 1), qWhLocInfo->GetObjective(1), locale, true))
                                             {
                                                 missingQuestObjective2++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText2", e, locale) + "\n";
@@ -6489,7 +6643,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(1), qDbLocInfo->GetObjective(1), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(1), qDbLocInfo->GetObjective(1), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") objectiveText2";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetObjective(1), qDbLocInfo->GetObjective(1)))
@@ -6502,13 +6656,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetObjective(2, e, 1).empty())
+                                if (!qDbLocInfo->GetObjective(2, e, 1).empty() && (qDbLocInfo->GetObjective(2).empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetObjective(2).empty())
                                     {
                                         if (qDbLocInfo->GetObjective(2).empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(2, e, 1), qWhLocInfo->GetObjective(2), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(2, e, 1), qWhLocInfo->GetObjective(2), locale, true))
                                             {
                                                 missingQuestObjective3++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText3", e, locale) + "\n";
@@ -6516,7 +6683,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(2), qDbLocInfo->GetObjective(2), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(2), qDbLocInfo->GetObjective(2), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") objectiveText3";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetObjective(2), qDbLocInfo->GetObjective(2)))
@@ -6529,13 +6696,26 @@ int main(int argc, char* argv[])
                                     }
                                 }
 
-                                if (!qDbLocInfo->GetObjective(3, e, 1).empty())
+                                if (!qDbLocInfo->GetObjective(3, e, 1).empty() && (qDbLocInfo->GetObjective(3).empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!qWhEngInfo)
+                                    {
+                                        qWhEngInfo = LoadWowheadQuestInfo(qID, e, 1, true);
+                                        if (!qWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!qWhLocInfo)
+                                    {
+                                        qWhLocInfo = LoadWowheadQuestInfo(qID, e, localeId, true);
+                                        if (!qWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!qWhLocInfo->GetObjective(3).empty())
                                     {
                                         if (qDbLocInfo->GetObjective(3).empty())
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(3, e, 1), qWhLocInfo->GetObjective(3), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(3, e, 1), qWhLocInfo->GetObjective(3), locale, true))
                                             {
                                                 missingQuestObjective4++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectiveText4", e, locale) + "\n";
@@ -6543,7 +6723,7 @@ int main(int argc, char* argv[])
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
-                                            if (!IsSameString(qWhLocInfo->GetObjective(3), qDbLocInfo->GetObjective(3), true))
+                                            if (!IsSameString(qWhLocInfo->GetObjective(3), qDbLocInfo->GetObjective(3), locale, true))
                                             {
                                                 const std::string message = "Quest (" + std::to_string(qWhLocInfo->GetEntry()) + ") objectiveText4";
                                                 if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, qWhLocInfo->GetObjective(3), qDbLocInfo->GetObjective(3)))
@@ -6560,7 +6740,10 @@ int main(int argc, char* argv[])
 
                         // write queries to file
                         if (!updateQueries.empty())
-                            writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_quest_" : "missing_quest_") + localeName(locale) + ".sql";
+                            writeToFile(updateQueries.c_str(), fileName, filesLocation);
+                        }
                     }
 
                     // Items
@@ -6611,14 +6794,9 @@ int main(int argc, char* argv[])
                                     msg_nodelay(message.str(), '\u0025');
                                 }
 
-                                // load both eng and locale
-                                WowheadItemInfo* itemWhEngInfo = LoadWowheadItemInfo(itemID, e, 1, true);
-                                if (!itemWhEngInfo)
-                                    continue;
-
-                                WowheadItemInfo* itemWhLocInfo = LoadWowheadItemInfo(itemID, e, localeId, true);
-                                if (!itemWhLocInfo)
-                                    continue;
+                                // load both eng and locale (later)
+                                WowheadItemInfo* itemWhEngInfo = nullptr;//LoadWowheadItemInfo(itemID, e, 1, true);
+                                WowheadItemInfo* itemWhLocInfo = nullptr;//LoadWowheadItemInfo(itemID, e, localeId, true);
 
                                 // load english first
                                 DatabaseItemInfo* itemDbLocInfo = LoadDatabaseItemInfo(itemID, e, 1, true, true);
@@ -6635,13 +6813,26 @@ int main(int argc, char* argv[])
                                 if (ignoreItems.find(itemID) == ignoreItems.end())
                                 {
                                     // Item name
-                                    if (!itemDbLocInfo->GetName(e, 1).empty())
+                                    if (!itemDbLocInfo->GetName(e, 1).empty() && (itemDbLocInfo->GetName().empty() || !ignoreDifferentVersion))
                                     {
+                                        if (!itemWhEngInfo)
+                                        {
+                                            itemWhEngInfo = LoadWowheadItemInfo(itemID, e, 1, true);
+                                            if (!itemWhEngInfo)
+                                                continue;
+                                        }
+                                        if (!itemWhLocInfo)
+                                        {
+                                            itemWhLocInfo = LoadWowheadItemInfo(itemID, e, localeId, true);
+                                            if (!itemWhLocInfo)
+                                                continue;
+                                        }
+
                                         if (!itemWhLocInfo->GetName().empty())
                                         {
                                             if (itemDbLocInfo->GetName().empty())
                                             {
-                                                if (!IsSameString(itemWhLocInfo->GetName(e, 1), itemWhLocInfo->GetName(), true))
+                                                if (!IsSameString(itemWhLocInfo->GetName(e, 1), itemWhLocInfo->GetName(), locale, true))
                                                 {
                                                     missingItemName++;
                                                     updateQueries += updateItemFromWhQuery(itemWhLocInfo, itemDbLocInfo, "name", e, locale) + "\n";
@@ -6649,7 +6840,7 @@ int main(int argc, char* argv[])
                                             }
                                             else if (!ignoreDifferentVersion)
                                             {
-                                                if (!IsSameString(itemWhLocInfo->GetName(), itemDbLocInfo->GetName(), true))
+                                                if (!IsSameString(itemWhLocInfo->GetName(), itemDbLocInfo->GetName(), locale, true))
                                                 {
                                                     const std::string message = "Item (" + std::to_string(itemWhLocInfo->GetEntry()) + ") name";
                                                     if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, itemWhLocInfo->GetName(), itemDbLocInfo->GetName()))
@@ -6663,13 +6854,26 @@ int main(int argc, char* argv[])
                                     }
                                 
                                     // Item description
-                                    if (!itemDbLocInfo->GetDescription(e, 1).empty())
+                                    if (!itemDbLocInfo->GetDescription(e, 1).empty() && (itemDbLocInfo->GetDescription().empty() || !ignoreDifferentVersion))
                                     {
+                                        if (!itemWhEngInfo)
+                                        {
+                                            itemWhEngInfo = LoadWowheadItemInfo(itemID, e, 1, true);
+                                            if (!itemWhEngInfo)
+                                                continue;
+                                        }
+                                        if (!itemWhLocInfo)
+                                        {
+                                            itemWhLocInfo = LoadWowheadItemInfo(itemID, e, localeId, true);
+                                            if (!itemWhLocInfo)
+                                                continue;
+                                        }
+
                                         if (!itemWhLocInfo->GetDescription().empty())
                                         {
                                             if (itemDbLocInfo->GetDescription().empty())
                                             {
-                                                if (!IsSameString(itemWhLocInfo->GetDescription(e, 1), itemWhLocInfo->GetDescription(), true))
+                                                if (!IsSameString(itemWhLocInfo->GetDescription(e, 1), itemWhLocInfo->GetDescription(), locale, true))
                                                 {
                                                     missingItemDescription++;
                                                     updateQueries += updateItemFromWhQuery(itemWhLocInfo, itemDbLocInfo, "description", e, locale) + "\n";
@@ -6677,7 +6881,7 @@ int main(int argc, char* argv[])
                                             }
                                             else if (!ignoreDifferentVersion)
                                             {
-                                                if (!IsSameString(itemWhLocInfo->GetDescription(), itemDbLocInfo->GetDescription(), true))
+                                                if (!IsSameString(itemWhLocInfo->GetDescription(), itemDbLocInfo->GetDescription(), locale, true))
                                                 {
                                                     const std::string message = "Item (" + std::to_string(itemWhLocInfo->GetEntry()) + ") description";
                                                     if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, itemWhLocInfo->GetDescription(), itemDbLocInfo->GetDescription()))
@@ -6692,8 +6896,21 @@ int main(int argc, char* argv[])
                                 }
 
                                 // Item pages
-                                if (!itemDbLocInfo->GetPages(e, 1).empty())
+                                if (!itemDbLocInfo->GetPages(e, 1).empty() && (itemDbLocInfo->GetPages().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!itemWhEngInfo)
+                                    {
+                                        itemWhEngInfo = LoadWowheadItemInfo(itemID, e, 1, true);
+                                        if (!itemWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!itemWhLocInfo)
+                                    {
+                                        itemWhLocInfo = LoadWowheadItemInfo(itemID, e, localeId, true);
+                                        if (!itemWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!itemWhLocInfo->GetPages().empty())
                                     {
                                         if (itemDbLocInfo->GetPages().empty())
@@ -6736,7 +6953,10 @@ int main(int argc, char* argv[])
 
                         // write queries to file
                         if (!updateQueries.empty())
-                            writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_item_" : "missing_item_") + localeName(locale) + ".sql";
+                            writeToFile(updateQueries.c_str(), fileName, filesLocation);
+                        }
                     }
 
                     // Game Objects
@@ -6796,13 +7016,13 @@ int main(int argc, char* argv[])
                                 }
 
                                 // load both eng and locale
-                                WowheadGameObjectInfo* gameObjectWhEngInfo = LoadWowheadGameObjectInfo(gameObjectID, e, 1, true);
-                                if (!gameObjectWhEngInfo)
-                                    continue;
+                                WowheadGameObjectInfo* gameObjectWhEngInfo = nullptr; //LoadWowheadGameObjectInfo(gameObjectID, e, 1, true);
+                                //if (!gameObjectWhEngInfo)
+                                //    continue;
 
-                                WowheadGameObjectInfo* gameObjectWhLocInfo = LoadWowheadGameObjectInfo(gameObjectID, e, localeId, true);
-                                if (!gameObjectWhLocInfo)
-                                    continue;
+                                WowheadGameObjectInfo* gameObjectWhLocInfo = nullptr; //LoadWowheadGameObjectInfo(gameObjectID, e, localeId, true);
+                                //if (!gameObjectWhLocInfo)
+                                //    continue;
 
                                 // load english first
                                 DatabaseGameObjectInfo* gameObjectDbLocInfo = LoadDatabaseGameObjectInfo(gameObjectID, e, 1, true, true);
@@ -6819,13 +7039,26 @@ int main(int argc, char* argv[])
                                 if (ignoreGameObjects.find(gameObjectID) == ignoreGameObjects.end())
                                 {
                                     // Game Object name
-                                    if (!gameObjectDbLocInfo->GetName(e, 1).empty())
+                                    if (!gameObjectDbLocInfo->GetName(e, 1).empty() && (gameObjectDbLocInfo->GetName().empty() || !ignoreDifferentVersion))
                                     {
+                                        if (!gameObjectWhEngInfo)
+                                        {
+                                            gameObjectWhEngInfo = LoadWowheadGameObjectInfo(gameObjectID, e, 1, true);
+                                            if (!gameObjectWhEngInfo)
+                                                continue;
+                                        }
+                                        if (!gameObjectWhLocInfo)
+                                        {
+                                            gameObjectWhLocInfo = LoadWowheadGameObjectInfo(gameObjectID, e, localeId, true);
+                                            if (!gameObjectWhLocInfo)
+                                                continue;
+                                        }
+
                                         if (!gameObjectWhLocInfo->GetName().empty())
                                         {
                                             if (gameObjectDbLocInfo->GetName().empty())
                                             {
-                                                if (!IsSameString(gameObjectWhLocInfo->GetName(e, 1), gameObjectWhLocInfo->GetName(), true))
+                                                if (!IsSameString(gameObjectWhLocInfo->GetName(e, 1), gameObjectWhLocInfo->GetName(), localeId, true))
                                                 {
                                                     missingGameObjectName++;
                                                     updateQueries += updateGameObjectFromWhQuery(gameObjectWhLocInfo, gameObjectDbLocInfo, "name", e, locale) + "\n";
@@ -6833,7 +7066,7 @@ int main(int argc, char* argv[])
                                             }
                                             else if (!ignoreDifferentVersion)
                                             {
-                                                if (!IsSameString(gameObjectWhLocInfo->GetName(), gameObjectDbLocInfo->GetName(), true))
+                                                if (!IsSameString(gameObjectWhLocInfo->GetName(), gameObjectDbLocInfo->GetName(), localeId, true))
                                                 {
                                                     const std::string message = "Game Object (" + std::to_string(gameObjectWhLocInfo->GetEntry()) + ") name";
                                                     if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, gameObjectWhLocInfo->GetName(), gameObjectDbLocInfo->GetName()))
@@ -6848,8 +7081,21 @@ int main(int argc, char* argv[])
                                 }
 
                                 // Game Object pages
-                                if (!gameObjectDbLocInfo->GetPages(e, 1).empty())
+                                if (!gameObjectDbLocInfo->GetPages(e, 1).empty() && (gameObjectDbLocInfo->GetPages().empty() || !ignoreDifferentVersion))
                                 {
+                                    if (!gameObjectWhEngInfo)
+                                    {
+                                        gameObjectWhEngInfo = LoadWowheadGameObjectInfo(gameObjectID, e, 1, true);
+                                        if (!gameObjectWhEngInfo)
+                                            continue;
+                                    }
+                                    if (!gameObjectWhLocInfo)
+                                    {
+                                        gameObjectWhLocInfo = LoadWowheadGameObjectInfo(gameObjectID, e, localeId, true);
+                                        if (!gameObjectWhLocInfo)
+                                            continue;
+                                    }
+
                                     if (!gameObjectWhLocInfo->GetPages().empty())
                                     {
                                         if (gameObjectDbLocInfo->GetPages().empty())
@@ -6892,7 +7138,10 @@ int main(int argc, char* argv[])
 
                         // write queries to file
                         if (!updateQueries.empty())
-                            writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_object_" : "missing_object_") + localeName(locale) + ".sql";
+                            writeToFile(updateQueries.c_str(), fileName, filesLocation);
+                        }
                     }
 
                     // Achievements
@@ -6964,7 +7213,7 @@ int main(int argc, char* argv[])
                                         {
                                             if (achievementDbLocInfo->GetName().empty())
                                             {
-                                                if (!IsSameString(achievementWhLocInfo->GetName(e, 1), achievementWhLocInfo->GetName(), true))
+                                                if (!IsSameString(achievementWhLocInfo->GetName(e, 1), achievementWhLocInfo->GetName(), locale, true))
                                                 {
                                                     missingAchievementName++;
                                                     updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "name", e, locale) + "\n";
@@ -6972,7 +7221,7 @@ int main(int argc, char* argv[])
                                             }
                                             else if (!ignoreDifferentVersion)
                                             {
-                                                if (!IsSameString(achievementWhLocInfo->GetName(), achievementDbLocInfo->GetName(), true))
+                                                if (!IsSameString(achievementWhLocInfo->GetName(), achievementDbLocInfo->GetName(), locale, true))
                                                 {
                                                     const std::string message = "Achievement (" + std::to_string(achievementWhLocInfo->GetEntry()) + ") name";
                                                     if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, achievementWhLocInfo->GetName(), achievementDbLocInfo->GetName()))
@@ -6992,7 +7241,7 @@ int main(int argc, char* argv[])
                                         {
                                             if (achievementDbLocInfo->GetDescription().empty())
                                             {
-                                                if (!IsSameString(achievementWhLocInfo->GetDescription(e, 1), achievementWhLocInfo->GetDescription(), true))
+                                                if (!IsSameString(achievementWhLocInfo->GetDescription(e, 1), achievementWhLocInfo->GetDescription(), locale, true))
                                                 {
                                                     missingAchievementDescription++;
                                                     updateQueries += updateAchievementFromWhQuery(achievementWhLocInfo, achievementDbLocInfo, "description", e, locale) + "\n";
@@ -7000,7 +7249,7 @@ int main(int argc, char* argv[])
                                             }
                                             else if (!ignoreDifferentVersion)
                                             {
-                                                if (!IsSameString(achievementWhLocInfo->GetDescription(), achievementDbLocInfo->GetDescription(), true))
+                                                if (!IsSameString(achievementWhLocInfo->GetDescription(), achievementDbLocInfo->GetDescription(), locale, true))
                                                 {
                                                     const std::string message = "Achievement (" + std::to_string(achievementWhLocInfo->GetEntry()) + ") description";
                                                     if (autoUpdateWowheadVersion || ShouldOverrideDifference(message, achievementWhLocInfo->GetDescription(), achievementDbLocInfo->GetDescription()))
@@ -7071,7 +7320,10 @@ int main(int argc, char* argv[])
 
                         // write queries to file
                         if (!updateQueries.empty())
-                            writeToFile(updateQueries.c_str(), "missingLocales_" + localeName(locale) + ".sql", filesLocation);
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_achievement_" : "missing_achievement_") + localeName(locale) + ".sql";
+                            writeToFile(updateQueries.c_str(), fileName, filesLocation);
+                        }
                     }
 
                     if (checkQuests)
@@ -7079,7 +7331,7 @@ int main(int argc, char* argv[])
                         // print results
                         msg_delay("\n\n");
 
-                        msg_delay(">   Quest Stats:\n");
+                        msg_delay(">   Quest Stats: " + localeName(locale) + "\n");
 
                         if (missingDbQuest)
                             msg_delay(">   Missing Quests in DB: %d \n\n", missingDbQuest);
@@ -7106,7 +7358,7 @@ int main(int argc, char* argv[])
                         // print results
                         msg_delay("\n\n");
 
-                        msg_delay(">   Item Stats:\n");
+                        msg_delay(">   Item Stats: " + localeName(locale) + "\n");
 
                         if (missingDbItem)
                             msg_delay(">   Missing Items in DB: %d \n\n", missingDbItem);
@@ -7125,7 +7377,7 @@ int main(int argc, char* argv[])
                         // print results
                         msg_delay("\n\n");
 
-                        msg_delay(">   Game Objects Stats:\n");
+                        msg_delay(">   Game Objects Stats: " + localeName(locale) + "\n");
 
                         if (missingDbItem)
                             msg_delay(">   Missing Game Objects in DB: %d \n\n", missingDbGameObject);
@@ -7142,7 +7394,7 @@ int main(int argc, char* argv[])
                         // print results
                         msg_delay("\n\n");
 
-                        msg_delay(">   Achievements Stats:\n");
+                        msg_delay(">   Achievements Stats: " + localeName(locale) + "\n");
 
                         if (missingDbItem)
                             msg_delay(">   Missing Achievements in DB: %d \n\n", missingDbAchievement);
@@ -7177,9 +7429,21 @@ int main(int argc, char* argv[])
                 maxGameObjectId[1] = 0;
                 maxGameObjectId[2] = 0;
 
+                uint32 checkLocalesOption = 0;
+                std::cout << "\nSelect what entries to fix: \n";
+                std::cout << "1) All \n";
+                std::cout << "2) Quests \n";
+                std::cout << "3) Items \n";
+                std::cout << "4) Game Objects \n";
+                std::cin >> checkLocalesOption;
+
                 // print db data
                 msg_delay("\n");
                 msg_delay("> DB: \n");
+
+                int questCounter = 0;
+                int itemCounter = 0;
+                int gameObjectCounter = 0;
 
                 for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
                 {
@@ -7196,11 +7460,11 @@ int main(int argc, char* argv[])
                         return 0;
                     }
 
-                    int questCounter = 0;
+                    /*int questCounter = 0;
                     DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", questCounter);
                     DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
-                    msg_delay("> DB: Quests %s locale, total: %d, max id: %d \n", localeName(1).c_str(), questCounter, maxQuestId[e - 1]);
-                    msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+                    msg_delay("> DB: Quests %s locale, total: %d, max id: %d \n", localeName(1).c_str(), questCounter, maxQuestId[e - 1]);*/
+                    //msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
 
                     for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
                     {
@@ -7211,23 +7475,37 @@ int main(int argc, char* argv[])
                         DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
                                                                                                                                      " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
                                                                                                                                      " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
-                        msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
-                        if (locale && trCount == 0)
+                        //msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                        /*if (locale && trCount == 0)
                         {
                             msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
                             return 0;
-                        }
+                        }*/
                     }
 
-                    int itemCounter = 0;
-                    DbConnect->GetDbInt("SELECT COUNT(*) FROM item_template", itemCounter);
-                    DbConnect->GetDbInt("SELECT MAX(entry) FROM item_template", maxItemId[e - 1]);
-                    msg_delay("> DB: Items %s locale, total: %d, max id: %d \n", localeName(1).c_str(), itemCounter, maxItemId[e - 1]);
+                    questCounter = 0;
+                    if (checkLocalesOption == 1 || checkLocalesOption == 2)
+                    {
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", questCounter);
+                        DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                        msg_delay("> DB: Quests %s locale, total: %d, max id: %d \n", localeName(1).c_str(), questCounter, maxQuestId[e - 1]);
+                    }
 
-                    int gameObjectCounter = 0;
-                    DbConnect->GetDbInt("SELECT COUNT(*) FROM gameobject_template", gameObjectCounter);
-                    DbConnect->GetDbInt("SELECT MAX(entry) FROM gameobject_template", maxGameObjectId[e - 1]);
-                    msg_delay("> DB: Game Objects %s locale, total: %d, max id: %d \n", localeName(1).c_str(), gameObjectCounter, maxGameObjectId[e - 1]);
+                    itemCounter = 0;
+                    if (checkLocalesOption == 1 || checkLocalesOption == 3)
+                    {
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM item_template", itemCounter);
+                        DbConnect->GetDbInt("SELECT MAX(entry) FROM item_template", maxItemId[e - 1]);
+                        msg_delay("> DB: Items %s locale, total: %d, max id: %d \n", localeName(1).c_str(), itemCounter, maxItemId[e - 1]);
+                    }
+
+                    gameObjectCounter = 0;
+                    if (checkLocalesOption == 1 || checkLocalesOption == 4)
+                    {
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM gameobject_template", gameObjectCounter);
+                        DbConnect->GetDbInt("SELECT MAX(entry) FROM gameobject_template", maxGameObjectId[e - 1]);
+                        msg_delay("> DB: Game Objects %s locale, total: %d, max id: %d \n", localeName(1).c_str(), gameObjectCounter, maxGameObjectId[e - 1]);
+                    }
                 }
 
                 // do action
@@ -7242,7 +7520,7 @@ int main(int argc, char* argv[])
 
                     msg_delay("\n> %s \n", expansionName(e).c_str());
 
-                    msg_delay("> DB: Fixing wildcards... \n");
+                    //msg_delay("> DB: Fixing wildcards... \n");
 
                     // read existing update file
                     std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
@@ -7257,8 +7535,14 @@ int main(int argc, char* argv[])
                     uint32 counter = 0;
 
                     // Quests
+                    if (checkLocalesOption == 1 || checkLocalesOption == 2)
+                        msg_delay("> DB: Fixing Quest Tags... \n");
+
                     for (auto d = 1; d <= maxQuestId[e - 1]; ++d)
                     {
+                        if (!(checkLocalesOption == 1 || checkLocalesOption == 2))
+                            break;
+
                         DatabaseQuestInfo* qDbInfo = LoadDatabaseQuestInfo(d, e, locale, true, true);
                         if (!qDbInfo || !qDbInfo->IsLoaded(e, locale))
                         {
@@ -7267,12 +7551,21 @@ int main(int argc, char* argv[])
                         }
                         else
                         {
-                            counter++;
+                            /*counter++;
                             //msg_nodelay(".");// msg_delay_set(".", 50);
                             if ((counter % 1000) == 0)
                                 msg_nodelay(std::to_string(counter));
                             else if ((counter % 100) == 0)
-                                msg_nodelay(".");
+                                msg_nodelay(".");*/
+
+                            counter++;
+                            if ((counter % 10) == 0)
+                            {
+                                std::stringstream message;
+                                uint32 iterationPct = (counter * 100) / questCounter;
+                                message << "   " << std::to_string(iterationPct) << "%c (" << std::to_string(counter) << "/" + std::to_string(questCounter) << ")\n";
+                                msg_nodelay(message.str(), '\u0025');
+                            }
 
                             // logic goes here
 
@@ -7382,8 +7675,15 @@ int main(int argc, char* argv[])
                     }
 
                     // Items
+                    if (checkLocalesOption == 1 || checkLocalesOption == 3)
+                        msg_delay("> DB: Fixing Items Tags... \n");
+
+                    counter = 0;
                     for (auto d = 1; d <= maxItemId[e - 1]; ++d)
                     {
+                        if (!(checkLocalesOption == 1 || checkLocalesOption == 3))
+                            break;
+
                         DatabaseItemInfo* itemDbInfo = LoadDatabaseItemInfo(d, e, locale, true, true);
                         if (!itemDbInfo || !itemDbInfo->IsLoaded(e, locale))
                         {
@@ -7391,12 +7691,21 @@ int main(int argc, char* argv[])
                         }
                         else
                         {
-                            counter++;
+                            /*counter++;
                             //msg_nodelay(".");// msg_delay_set(".", 50);
                             if ((counter % 1000) == 0)
                                 msg_nodelay(std::to_string(counter));
                             else if ((counter % 100) == 0)
-                                msg_nodelay(".");
+                                msg_nodelay(".");*/
+
+                            counter++;
+                            if ((counter % 10) == 0)
+                            {
+                                std::stringstream message;
+                                uint32 iterationPct = (counter * 100) / itemCounter;
+                                message << "   " << std::to_string(iterationPct) << "%c (" << std::to_string(counter) << "/" + std::to_string(itemCounter) << ")\n";
+                                msg_nodelay(message.str(), '\u0025');
+                            }
 
                             // logic goes here
                             std::string name = itemDbInfo->GetName();
@@ -7529,8 +7838,15 @@ int main(int argc, char* argv[])
                     }
 
                     // Game Objects
+                    if (checkLocalesOption == 1 || checkLocalesOption == 4)
+                        msg_delay("> DB: Fixing Game Object Tags... \n");
+
+                    counter = 0;
                     for (auto d = 1; d <= maxItemId[e - 1]; ++d)
                     {
+                        if (!(checkLocalesOption == 1 || checkLocalesOption == 4))
+                            break;
+
                         DatabaseGameObjectInfo* gameObjectDbInfo = LoadDatabaseGameObjectInfo(d, e, locale, true, true);
                         if (!gameObjectDbInfo || !gameObjectDbInfo->IsLoaded(e, locale))
                         {
@@ -7538,12 +7854,21 @@ int main(int argc, char* argv[])
                         }
                         else
                         {
-                            counter++;
+                            /*counter++;
                             //msg_nodelay(".");// msg_delay_set(".", 50);
                             if ((counter % 1000) == 0)
                                 msg_nodelay(std::to_string(counter));
                             else if ((counter % 100) == 0)
-                                msg_nodelay(".");
+                                msg_nodelay(".");*/
+
+                            counter++;
+                            if ((counter % 10) == 0)
+                            {
+                                std::stringstream message;
+                                uint32 iterationPct = (counter * 100) / gameObjectCounter;
+                                message << "   " << std::to_string(iterationPct) << "%c (" << std::to_string(counter) << "/" + std::to_string(gameObjectCounter) << ")\n";
+                                msg_nodelay(message.str(), '\u0025');
+                            }
 
                             // logic goes here
                             std::string name = gameObjectDbInfo->GetName();
@@ -7718,7 +8043,7 @@ int main(int argc, char* argv[])
                         if (locale && trCount == 0)
                         {
                             msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
-                            return 0;
+                            //return 0;
                         }
                     }
                 }

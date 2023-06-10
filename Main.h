@@ -23,7 +23,7 @@ typedef std::uint16_t uint16;
 typedef std::uint8_t uint8;
 
 #define MAX_EXPANSION 3
-#define MAX_LOCALE 8
+#define MAX_LOCALE 11
 #define MAX_QUEST_PARTS 7
 #define SKIP_NONDB 1
 
@@ -330,7 +330,7 @@ public:
     std::map<uint32, WowheadGameObjectInfo*> gameObjectWowheadInfoList;
     std::map<uint32, DatabaseGameObjectInfo*> gameObjectDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
-    std::string getProjectName() const { return projectInfo.projectName; };
+    [[nodiscard]] std::string getProjectName() const { return projectInfo.projectName; };
 
 private:
     ProjectInfo projectInfo;
