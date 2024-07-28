@@ -2743,7 +2743,7 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
 
 #ifdef SKIP_NONDB
                 // skip loading pages not in DB
-                if ((type == TYPE_OBJECT || type == TYPE_ITEM || type == TYPE_NPC || type == TYPE_ACHIEVEMENT) && sDataMgr.IsDbOn(e))
+                if ((type == TYPE_QUEST || type == TYPE_OBJECT || type == TYPE_ITEM || type == TYPE_NPC || type == TYPE_ACHIEVEMENT) && sDataMgr.IsDbOn(e))
                 {
                     auto DbCon = sDataMgr.GetCon(e);
                     if (DbCon)
@@ -6105,7 +6105,7 @@ int main(int argc, char* argv[])
             std::cout << "2) Add and/or Update locales from WowHead (Skip english texts) \n";
             std::cout << "3) Replace <name>, <class>, <race> and <gender> with $n, $c, $r and $g. Also |3-X() in ru classic \n";
             std::cout << "4) Auto add missing locales from other expansions (if English is same) \n";
-            std::cout << "5) TODO \n";
+            std::cout << "5) Search for missing name/race/class tags \n";
             std::cin >> action;
 
             if (!locale || !expansion)
@@ -9316,6 +9316,575 @@ int main(int argc, char* argv[])
                         writeToFile(updateQueries.c_str(), checkDiff ? "missingFromOtherExp_" + localeName(locale) + ".sql" : "missingFromOtherExpIncludeDiffEng_" + localeName(locale) + ".sql", filesLocation);
                 }
                 // ACTION 4 END
+                return 1;
+            }
+            // Search for missing name/race/class tags
+            if (action == 5)
+            {
+                int maxQuestId[MAX_EXPANSION];
+                maxQuestId[0] = 0;
+                maxQuestId[1] = 0;
+                maxQuestId[2] = 0;
+
+                // print db data
+                msg_delay("\n");
+                msg_delay("> DB: \n");
+
+                int questCounter = 0;
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    auto DbConnect = sDataMgr.GetCon(e);
+                    if (!DbConnect || !DbConnect->IsConnected())
+                    {
+                        msg_delay("> DB: Failed to connect! \n");
+                        //delete DbConnect;
+                        return 0;
+                    }
+
+                    /*int questCounter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", questCounter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay("> DB: Quests %s locale, total: %d, max id: %d \n", localeName(1).c_str(), questCounter, maxQuestId[e - 1]);*/
+                    //msg_delay("> DB: Quests translated (Title OR Details != NULL): \n");
+
+                    for (auto i = 2; i <= MAX_LOCALE; ++i) // locales
+                    {
+                        if (locale && locale != i)
+                            continue;
+
+                        int trCount = 0;
+                        DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                     " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
+                                                                                                                                                                                           " OR Objectives_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL", trCount);
+                        //msg_delay(">  %s %d \n", localeName(i).c_str(), trCount);
+                        /*if (locale && trCount == 0)
+                        {
+                            msg_delay("> DB: no %s translations found in database! \n", localeName(i).c_str());
+                            return 0;
+                        }*/
+                    }
+
+                    questCounter = 0;
+                    DbConnect->GetDbInt("SELECT COUNT(*) FROM quest_template", questCounter);
+                    DbConnect->GetDbInt("SELECT MAX(entry) FROM quest_template", maxQuestId[e - 1]);
+                    msg_delay("> DB: Quests %s locale, total: %d, max id: %d \n", localeName(1).c_str(), questCounter, maxQuestId[e - 1]);
+                }
+
+                // do action
+                msg_delay("\n");
+
+                msg_delay("> Starting... \n");
+
+                for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
+                {
+                    if (expansion && expansion != e)
+                        continue;
+
+                    msg_delay("\n> %s \n", expansionName(e).c_str());
+
+                    //msg_delay("> DB: Fixing wildcards... \n");
+
+                    // read existing update file
+                    std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
+                    //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
+                    //writeToFile("-- QUERIES GO BELOW\n", "missingTags", filesLocation);
+                    std::string updateQueries;
+                    uint32 foundNameTags = 0;
+                    uint32 foundClassTags = 0;
+                    uint32 foundGenderTags = 0;
+                    uint32 foundRaceTags = 0;
+
+                    uint32 fixedNameTags = 0;
+                    uint32 fixedClassTags = 0;
+                    uint32 fixedGenderTags = 0;
+                    uint32 fixedRaceTags = 0;
+
+                    uint32 counter = 0;
+
+                    // Quests
+                    msg_delay("> DB: Searching for missing Quest Tags... \n");
+
+                    bool needBreak = false;
+                    for (auto d = 1; d <= maxQuestId[e - 1]; ++d)
+                    {
+                        DatabaseQuestInfo* qDbInfo = LoadDatabaseQuestInfo(d, e, locale, true, true);
+                        if (!qDbInfo || !qDbInfo->IsLoaded(e, locale))
+                        {
+                            //msg_delay("> DB " + typeName(TYPE_QUEST) + " #" + std::to_string(entry) + "-" + localeName(locale) + ": Failed to load from Database! \n");
+                            continue;
+                        }
+                        else
+                        {
+                            qDbInfo->LoadEntryData(e, 1);
+                            /*counter++;
+                            //msg_nodelay(".");// msg_delay_set(".", 50);
+                            if ((counter % 1000) == 0)
+                                msg_nodelay(std::to_string(counter));
+                            else if ((counter % 100) == 0)
+                                msg_nodelay(".");*/
+
+                            counter++;
+                            if ((counter % 10) == 0)
+                            {
+                                std::stringstream message;
+                                uint32 iterationPct = (counter * 100) / questCounter;
+                                message << "   " << std::to_string(iterationPct) << "%c (" << std::to_string(counter) << "/" + std::to_string(questCounter) << ")\n";
+                                msg_nodelay(message.str(), '\u0025');
+                            }
+
+                            // logic goes here
+
+                            // Name
+                            std::string details = qDbInfo->GetDetails(e, locale);
+                            std::string offer = qDbInfo->GetOfferRewardText(e, locale);
+                            std::string req = qDbInfo->GetRequestItemText(e, locale);
+
+                            if (!details.empty() && hasNameTag(qDbInfo->GetDetails(e, 1), true, e, locale) && !hasNameTag(details, false, e, locale))
+                            {
+                                foundNameTags++;
+                                std::string replace = details;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetDetails(e, 1), "$N", "\u001B[32m$N\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$n", "\u001B[32m$n\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing NAME tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB Details EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB Details: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $N: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        details = StringHelper::ReplaceString(details, wordReplace, "$N", true);
+                                        if (replace != details)
+                                            fixedNameTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!offer.empty() && hasNameTag(qDbInfo->GetOfferRewardText(e, 1), true, e, locale) && !hasNameTag(offer, false, e, locale))
+                            {
+                                foundNameTags++;
+                                std::string replace = offer;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetOfferRewardText(e, 1), "$N", "\u001B[32m$N\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$n", "\u001B[32m$n\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing NAME tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB OfferRewText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB OfferRewText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $N: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        offer = StringHelper::ReplaceString(offer, wordReplace, "$N", true);
+                                        if (replace != offer)
+                                            fixedNameTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!req.empty() && hasNameTag(qDbInfo->GetRequestItemText(e, 1), true, e, locale) && !hasNameTag(req, false, e, locale))
+                            {
+                                foundNameTags++;
+                                std::string replace = req;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetRequestItemText(e, 1), "$N", "\u001B[32m$N\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$n", "\u001B[32m$n\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing NAME tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB ReqItemText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB ReqItemText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $N: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        req = StringHelper::ReplaceString(req, wordReplace, "$N", true);
+                                        if (replace != req)
+                                            fixedNameTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+
+                            // Race
+                            if (!details.empty() && hasRaceTag(qDbInfo->GetDetails(e, 1), true, e, locale) && !hasRaceTag(details, false, e, locale))
+                            {
+                                foundRaceTags++;
+                                std::string replace = details;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetDetails(e, 1), "$R", "\u001B[32m$R\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$r", "\u001B[32m$r\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing RACE tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB Details EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB Details: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $R: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        details = StringHelper::ReplaceString(details, wordReplace, "$R", true);
+                                        if (replace != details)
+                                            fixedRaceTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!offer.empty() && hasRaceTag(qDbInfo->GetOfferRewardText(e, 1), true, e, locale) && !hasRaceTag(offer, false, e, locale))
+                            {
+                                foundRaceTags++;
+                                std::string replace = offer;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetOfferRewardText(e, 1), "$R", "\u001B[32m$R\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$r", "\u001B[32m$r\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing RACE tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB OfferRewText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB OfferRewText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $R: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        offer = StringHelper::ReplaceString(offer, wordReplace, "$R", true);
+                                        if (replace != offer)
+                                            fixedRaceTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!req.empty() && hasRaceTag(qDbInfo->GetRequestItemText(e, 1), true, e, locale) && !hasRaceTag(req, false, e, locale))
+                            {
+                                foundRaceTags++;
+                                std::string replace = req;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetRequestItemText(e, 1), "$R", "\u001B[32m$R\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$r", "\u001B[32m$r\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing RACE tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB ReqItemText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB ReqItemText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $R: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        req = StringHelper::ReplaceString(req, wordReplace, "$R", true);
+                                        if (replace != req)
+                                            fixedRaceTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+
+                            // Class
+                            if (!details.empty() && hasClassTag(qDbInfo->GetDetails(e, 1), true, e, locale) && !hasClassTag(details, false, e, locale))
+                            {
+                                foundClassTags++;
+                                std::string replace = details;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetDetails(e, 1), "$C", "\u001B[32m$C\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$c", "\u001B[32m$c\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing CLASS tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB Details EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB Details: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        details = StringHelper::ReplaceString(details, wordReplace, "$C", true);
+                                        if (replace != details)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!offer.empty() && hasClassTag(qDbInfo->GetOfferRewardText(e, 1), true, e, locale) && !hasClassTag(offer, false, e, locale))
+                            {
+                                foundClassTags++;
+                                std::string replace = offer;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetOfferRewardText(e, 1), "$C", "\u001B[32m$C\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$c", "\u001B[32m$c\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing CLASS tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB OfferRewText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB OfferRewText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        offer = StringHelper::ReplaceString(offer, wordReplace, "$C", true);
+                                        if (replace != offer)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+                            if (!req.empty() && hasClassTag(qDbInfo->GetRequestItemText(e, 1), true, e, locale) && !hasClassTag(req, false, e, locale))
+                            {
+                                foundClassTags++;
+                                std::string replace = req;
+                                std::string visualReplace = StringHelper::ReplaceString(qDbInfo->GetRequestItemText(e, 1), "$C", "\u001B[32m$C\u001B[0m");
+                                visualReplace = StringHelper::ReplaceString(visualReplace, "$c", "\u001B[32m$c\u001B[0m");
+                                uint32 actionId = 0;
+                                msg_delay("\n> Missing CLASS tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB ReqItemText EN: " + visualReplace + "\n");
+                                msg_delay("\n> DB ReqItemText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        req = StringHelper::ReplaceString(req, wordReplace, "$C", true);
+                                        if (replace != req)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    needBreak = true;
+                            }
+
+                            // Gender
+                            /*if (hasGenderTag(qDbInfo->GetDetails(e, 1), true, e, locale) && !hasGenderTag(details, false, e, locale))
+                            {
+                                foundGenderTags++;
+                                std::string replace = details;
+                                uint32 actionId;
+                                msg_delay("\n> Missing GENDER tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB Details EN: " + qDbInfo->GetDetails(e, 1) + "\n");
+                                msg_delay("\n> DB Details: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        details = StringHelper::ReplaceString(details, wordReplace, "$C");
+                                        if (replace != details)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    break;
+                            }
+                            if (hasClassTag(qDbInfo->GetOfferRewardText(e, 1), true, e, locale) && !hasClassTag(offer, false, e, locale))
+                            {
+                                foundClassTags++;
+                                std::string replace = offer;
+                                uint32 actionId;
+                                msg_delay("\n> Missing CLASS tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB OfferRewText EN: " + qDbInfo->GetOfferRewardText(e, 1) + "\n");
+                                msg_delay("\n> DB OfferRewText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        offer = StringHelper::ReplaceString(offer, wordReplace, "$C");
+                                        if (replace != offer)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    break;
+                            }
+                            if (hasClassTag(qDbInfo->GetRequestItemText(e, 1), true, e, locale) && !hasClassTag(req, false, e, locale))
+                            {
+                                foundClassTags++;
+                                std::string replace = req;
+                                uint32 actionId;
+                                msg_delay("\n> Missing CLASS tag: Quest #" + std::to_string(d) + "\n");
+                                msg_delay("\n> DB ReqItemText EN: " + qDbInfo->GetRequestItemText(e, 1) + "\n");
+                                msg_delay("\n> DB ReqItemText: " + replace + "\n");
+                                std::cout << "\nSelect Action: \n";
+                                std::cout << "1) Replace word with some tag\n";
+                                std::cout << "2) Skip to next part or quest\n";
+                                std::cout << "3) Stop and print results\n";
+                                std::cin >> actionId;
+
+                                // replace
+                                if (actionId == 1)
+                                {
+                                    std::string wordReplace;
+                                    std::cout << "\nType word to replace with $C: \n";
+                                    std::cin >> wordReplace;
+
+                                    if (!wordReplace.empty())
+                                    {
+                                        req = StringHelper::ReplaceString(req, wordReplace, "$C");
+                                        if (replace != req)
+                                            fixedClassTags++;
+                                    }
+                                }
+
+                                if (actionId == 3)
+                                    break;
+                            }*/
+
+                            // print queries if needed
+                            if (details != qDbInfo->GetDetails())
+                                updateQueries += updateQuestFromTextQueryNoTags(details, qDbInfo, "details", e, locale) + "\n";
+                            if (offer != qDbInfo->GetOfferRewardText())
+                                updateQueries += updateQuestFromTextQueryNoTags(offer, qDbInfo, "offerRewardText", e, locale) + "\n";
+                            if (req != qDbInfo->GetRequestItemText())
+                                updateQueries += updateQuestFromTextQueryNoTags(req, qDbInfo, "requestItemText", e, locale) + "\n";
+
+                            if (needBreak)
+                                break;
+                        }
+                    }
+
+                    // print results
+                    msg_delay("\n\n");
+
+                    msg_delay(">   Found missing $N: %d \n", foundNameTags);
+                    msg_delay(">   Found missing $R: %d \n", foundRaceTags);
+                    msg_delay(">   Found missing $C: %d \n", foundClassTags);
+                    //msg_delay(">   Found missing $G: %d \n", addedGenderTags);
+
+                    msg_delay(">   Fixed missing $N: %d \n", fixedNameTags);
+                    msg_delay(">   Fixed missing $R: %d \n", fixedRaceTags);
+                    msg_delay(">   Fixed missing $C: %d \n", fixedClassTags);
+                    //msg_delay(">   Fixed missing $G: %d \n", addedGenderTags);
+
+                    // write queries to file
+                    if (!updateQueries.empty())
+                        writeToFile(updateQueries.c_str(), "missingLocaledTags_" + localeName(locale) + ".sql", filesLocation);
+                }
+                // ACTION 5 END
                 return 1;
             }
         }
