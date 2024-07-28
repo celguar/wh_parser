@@ -1,10 +1,13 @@
 #include "Main.h"
+#include "dep/windows/include/json/json.hpp"
 #include <codecvt>
 #include <set>
 
 #define STRING_SIZE 100000
 #define NOT_FOUND_TEXT "database-detail-page-not-found-message"
 #define MSG_DELAY 100
+
+using json = nlohmann::json;
 
 namespace StringHelper
 {
@@ -65,14 +68,30 @@ namespace StringHelper
         return substrings;
     }
 
-    std::string ReplaceString(const std::string& string, const std::string& toReplace, const std::string& replaceWith)
+    std::string ReplaceString(const std::string& string, const std::string& toReplace, const std::string& replaceWith, bool useRegex = false)
     {
         std::string output = string;
+
+        if (useRegex)
+        {
+            const std::regex re(toReplace);
+            output = std::regex_replace(output, re, replaceWith);
+            return output;
+        }
+
         size_t found = output.find(toReplace);
+        // hackfix for infinite stuck
+        uint32 attempts = 0;
+        uint32 steps = 0;
         while (found != std::string::npos)
         {
             output.replace(found, toReplace.size(), replaceWith);
-            found = output.find(toReplace, found + 1);
+            found = output.find(toReplace, found + steps);
+            attempts++;
+            if ((attempts % 1000) == 0)
+            {
+                steps++;
+            }
         }
 
         return output;
@@ -156,6 +175,40 @@ namespace StringHelper
             if (output.back() == '"')
             {
                 output.pop_back();
+            }
+        }
+
+        return output;
+    }
+
+    std::string RemoveStartAndEndBrackets(const std::string& input)
+    {
+        std::string output = input;
+        if (output.size() >= 2 && (output.front() == '[' || output.back() == ']'))
+        {
+            if (output.front() == '[')
+            {
+                output.erase(output.begin());
+
+                // space in begining
+                if (output.front() == ' ')
+                    output.erase(output.begin());
+
+                // space in begining
+                if (output.front() == '\n')
+                    output.erase(output.begin());
+            }
+
+            if (output.back() == ']')
+            {
+                output.pop_back();
+
+                // space in the end
+                if (output.back() == ' ')
+                    output.pop_back();
+
+                if (output.back() == '\n')
+                    output.pop_back();
             }
         }
 
@@ -578,6 +631,88 @@ namespace StringHelper
         ReplaceGenderTag(output, expansion, locale);
         return output;
     }
+
+    void ReplaceTranslateArtifacts(std::string& theText, uint32 expansion, uint32 locale)
+    {
+        std::vector<std::string> nameTags;
+        std::vector<std::string> nameTagsWithSpace;
+        nameTags.emplace_back("N N");
+        nameTags.emplace_back("N ¿N");
+        nameTags.emplace_back("N ¡N");
+        nameTagsWithSpace.emplace_back(" N N");
+        nameTagsWithSpace.emplace_back(" n n");
+        nameTagsWithSpace.emplace_back(" \\$ n");
+        nameTagsWithSpace.emplace_back(" \\$ N");
+
+        std::vector<std::string> newLineTags;
+        std::vector<std::string> doubleNewLineTags;
+        doubleNewLineTags.emplace_back("\\$B BI BI");
+        doubleNewLineTags.emplace_back("\\$ B \\$ B");
+        doubleNewLineTags.emplace_back("\\$ B \\$ b");
+        doubleNewLineTags.emplace_back("\\$ b \\$ b");
+        doubleNewLineTags.emplace_back("b b b B");
+        doubleNewLineTags.emplace_back("b b b");
+        doubleNewLineTags.emplace_back("\\$ B");
+        doubleNewLineTags.emplace_back("B B");
+        doubleNewLineTags.emplace_back("b b ");
+        newLineTags.emplace_back("\\$B B");
+
+        std::vector<std::string> classTags;
+        std::vector<std::string> classTagsWithSpace;
+        classTags.emplace_back("C C");
+        classTags.emplace_back("\\$ C");
+        classTagsWithSpace.emplace_back(" c c");
+
+        std::vector<std::string> raceTags;
+        std::vector<std::string> raceTagsWiuthSpace;
+        raceTags.emplace_back("\\$ r");
+        raceTags.emplace_back("\\$ R");
+        raceTagsWiuthSpace.emplace_back(" r r");
+        raceTagsWiuthSpace.emplace_back(",R R");
+
+        for (const auto& name : nameTags)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, "$N");
+        }
+        for (const auto& name : nameTagsWithSpace)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, " $N");
+        }
+
+        for (const auto& name : doubleNewLineTags)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, "$B$B");
+        }
+        for (const auto& name : newLineTags)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, "$B");
+        }
+        for (const auto& name : classTags)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, "$C");
+        }
+        for (const auto& name : classTagsWithSpace)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, " $C");
+        }
+
+        for (const auto& name : raceTags)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, "$R");
+        }
+        for (const auto& name : raceTagsWiuthSpace)
+        {
+            const std::regex re(name);
+            theText = std::regex_replace(theText, re, " $R");
+        }
+    }
 }
 
 unsigned int check_int_input(const char* arg)
@@ -727,6 +862,35 @@ std::string localeName(unsigned int locId)
     }
 }
 
+std::string localeNameAPI(unsigned int locId)
+{
+    switch (locId)
+    {
+        case 1:
+            return "en";
+        case 2:
+            return "ko";
+        case 3:
+            return "fr";
+        case 4:
+            return "de";
+        case 5:
+            return "zh";
+        case 6:
+            return "es";
+        case 7:
+            return "ru";
+        case 8:
+            return "zh";
+        case 10:
+            return "pt";
+        case 11:
+            return "it";
+        default:
+            return "";
+    }
+}
+
 std::string expansionName(unsigned int expId)
 {
     std::string expansionPrefix = "classic";
@@ -735,6 +899,8 @@ std::string expansionName(unsigned int expId)
     if (expId == 3)
         expansionPrefix = "wotlk";
     if (expId == 4)
+        expansionPrefix = "cata";
+    if (expId == 5)
         expansionPrefix = "retail";
 
     return expansionPrefix;
@@ -1007,6 +1173,8 @@ const char* dbName(uint32 expansion, const std::string& projectName = "cmangos")
         dbName = "tbcmangos";
     if (expansion == 3)
         dbName = "wotlkmangos";
+    if (expansion == 4)
+        dbName = "catamangos";
 
     return dbName;
 }
@@ -1031,7 +1199,7 @@ const char* questColumnName(const std::string& partName)
     return nullptr;
 }
 
-bool hasGenderTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+bool hasGenderTag(const std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
 {
     if (theText.empty())
         return false;
@@ -1054,7 +1222,7 @@ bool hasGenderTag(std::string& theText, bool dbOnly = false, uint32 expansion = 
     return !genderTags.empty();
 }
 
-bool hasNameTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+bool hasNameTag(const std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
 {
     if (theText.empty())
         return false;
@@ -1076,7 +1244,7 @@ bool hasNameTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0,
     return std::any_of(nameTags.begin(), nameTags.end(), [theText](const std::string& str){return theText.find(str) != std::string::npos;});
 }
 
-bool hasRaceTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+bool hasRaceTag(const std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
 {
     if (theText.empty())
         return false;
@@ -1133,7 +1301,7 @@ bool hasRaceTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0,
     return std::any_of(nameTags.begin(), nameTags.end(), [theText](const std::string& str){return theText.find(str) != std::string::npos;});
 }
 
-bool hasClassTag(std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
+bool hasClassTag(const std::string& theText, bool dbOnly = false, uint32 expansion = 0, uint32 locale = 0)
 {
     if (theText.empty())
         return false;
@@ -1198,7 +1366,31 @@ bool IsSameString(const std::string& text1, const std::string& text2, uint32 loc
     if (text1.empty() && text2.empty())
         return false;
 
+    if (text1.empty() && !text2.empty())
+        return false;
+
+    if (text2.empty() && !text1.empty())
+        return false;
+
     if (text1 == text2)
+        return true;
+
+    std::string text1NoBrackets = StringHelper::RemoveStartAndEndBrackets(text1);
+    if (text1NoBrackets == text2)
+        return true;
+
+    std::string text2NoBrackets = StringHelper::RemoveStartAndEndBrackets(text2);
+    if (text1 == text2NoBrackets)
+        return true;
+
+    if (text1NoBrackets == text2NoBrackets)
+        return true;
+
+    // skip texts with brackets
+    if ((text1.front() == '[' && text1.back() == ']') || (text2.front() == '[' && text2.back() == ']'))
+        return true;
+
+    if (text1.find(text2) != std::string::npos || text2.find(text1) != std::string::npos)
         return true;
 
     // expensive
@@ -1206,6 +1398,72 @@ bool IsSameString(const std::string& text1, const std::string& text2, uint32 loc
     {
         std::string text1Encoded = StringHelper::EncodeWoWString(text1, 1, locale);
         std::string text2Encoded = StringHelper::EncodeWoWString(text2, 1, locale);
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        // replace tags to lowercase to match
+        std::regex re("\\$B");
+        text1Encoded = std::regex_replace(text1Encoded, re, "$b");
+        text2Encoded = std::regex_replace(text2Encoded, re, "$b");
+        re = std::regex("\\$N");
+        text1Encoded = std::regex_replace(text1Encoded, re, "$n");
+        text2Encoded = std::regex_replace(text2Encoded, re, "$n");
+        re = std::regex("\\$R");
+        text1Encoded = std::regex_replace(text1Encoded, re, "$r");
+        text2Encoded = std::regex_replace(text2Encoded, re, "$r");
+        re = std::regex("\\$C");
+        text1Encoded = std::regex_replace(text1Encoded, re, "$c");
+        text2Encoded = std::regex_replace(text2Encoded, re, "$c");
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        // replace double spaces
+        re = std::regex("  ");
+        text1Encoded = std::regex_replace(text1Encoded, re, " ");
+        text2Encoded = std::regex_replace(text2Encoded, re, " ");
+        re = std::regex("  ");
+        text1Encoded = std::regex_replace(text1Encoded, re, " ");
+        text2Encoded = std::regex_replace(text2Encoded, re, " ");
+        re = std::regex("  ");
+        text1Encoded = std::regex_replace(text1Encoded, re, " ");
+        text2Encoded = std::regex_replace(text2Encoded, re, " ");
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        // space in begining
+        if (text1Encoded.front() == ' ')
+            text1Encoded.erase(text1Encoded.begin());
+        if (text2Encoded.front() == ' ')
+            text2Encoded.erase(text2Encoded.begin());
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        if (text1Encoded.front() == '\n')
+            text1Encoded.erase(text1Encoded.begin());
+        if (text2Encoded.front() == '\n')
+            text2Encoded.erase(text2Encoded.begin());
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        // space in the end
+        if (text1Encoded.back() == ' ')
+            text1Encoded.pop_back();
+        if (text2Encoded.back() == ' ')
+            text2Encoded.pop_back();
+
+        if (text1Encoded == text2Encoded)
+            return true;
+
+        if (text1Encoded.back() == '\n')
+            text1Encoded.pop_back();
+        if (text2Encoded.back() == '\n')
+            text2Encoded.pop_back();
+
         return text1Encoded == text2Encoded;
     }
 
@@ -1532,7 +1790,7 @@ std::string FindAltText(DatabaseQuestInfo* dbInfo, const std::string& partName, 
 
         // skip if EN texts are different (quest was changed in expansion)
         std::string expTextEng = dbInfo->GetQuestPart(partName, ex, 1);
-        if (skipDiff && expTextEng != origTextEng)
+        if (skipDiff && !IsSameString(expTextEng, origTextEng, 1, true))
             continue;
 
         // skip if locales are same as EN text
@@ -1540,13 +1798,50 @@ std::string FindAltText(DatabaseQuestInfo* dbInfo, const std::string& partName, 
             continue;
 
         // not needed if skipDiff is true
-        if(!skipDiff && IsSameString(expText, origTextEng, locale,true))
+        if(!skipDiff && IsSameString(expText, origTextEng, locale, true))
             continue;
 
         altText = expText;
     }
 
     return altText;
+}
+
+std::string APITranslate(const std::string& str, uint32 expansion, uint32 locale)
+{
+    std::string result;
+    if (str.empty())
+        return result;
+
+    json j;
+    j["texts"][0] = str;
+    j["targetLanguageCode"] = localeNameAPI(locale);
+    j["folderId"] = "b1g89ntis3tb4ri40env";
+    auto r = cpr::Post(
+            cpr::Url{"API URL PLACEHOLDER"},
+            cpr::Body{j.dump()},
+            cpr::Header{{"Content-Type", "application/json"}, {"Authorization", "API KEY PLACEHOLDER"}}
+    );
+
+    if (r.status_code == 401)
+    {
+        msg_delay("Translate API - Token expired!");
+        return result;
+    }
+    json response = json::parse(r.text);
+    result = response["translations"][0]["text"];
+    result = StringHelper::RemoveStartAndEndQuotes(result);
+    result = StringHelper::DecodeHTMLString(result);
+    //result = StringHelper::IsoToUtf8(result);
+    result = StringHelper::EncodeWoWString(result, expansion, locale);
+    StringHelper::ReplaceTranslateArtifacts(result, expansion, locale);
+    //std::cout << result;
+    /*if (!result.empty())
+        msg_delay("Translate API: OK \n", MSG_DELAY * 10);
+    else
+        msg_delay("Translate API: FAIL \n", MSG_DELAY * 10);*/
+
+    return result;
 }
 
 bool TestDbConnect()
@@ -1654,9 +1949,9 @@ bool DatabaseConnect::RunStringStmt(const std::string &command, std::vector<std:
         bind[i].buffer_type = MYSQL_TYPE_STRING;
         bind[i].buffer = (char*)(str_data[i]);
         bind[i].buffer_length = STRING_SIZE;
-        bind[i].is_null = &is_null[i];
+        bind[i].is_null = reinterpret_cast<my_bool *>(&is_null[i]);
         bind[i].length = &length[i];
-        bind[i].error = &error[i];
+        bind[i].error = reinterpret_cast<my_bool *>(&error[i]);
     }
 
     /* Bind the result buffers */
@@ -1808,9 +2103,9 @@ bool DatabaseConnect::RunIntStmt(const std::string &command, std::vector<int> &r
         /* INTEGER COLUMN */
         bind[i].buffer_type = MYSQL_TYPE_LONG;
         bind[i].buffer = (char*)&int_data;
-        bind[i].is_null = &is_null[i];
+        bind[i].is_null = reinterpret_cast<my_bool *>(&is_null[i]);
         bind[i].length = &length[i];
-        bind[i].error = &error[i];
+        bind[i].error = reinterpret_cast<my_bool *>(&error[i]);
     }
 
     /* Bind the result buffers */
@@ -2039,9 +2334,9 @@ std::string loadFromDB()
         bind[0].buffer_type = MYSQL_TYPE_STRING;
         bind[0].buffer = (char*)str_data;
         bind[0].buffer_length = STRING_SIZE;
-        bind[0].is_null = &is_null[0];
+        bind[0].is_null = reinterpret_cast<my_bool *>(&is_null[0]);
         bind[0].length = &length[0];
-        bind[0].error = &error[0];
+        bind[0].error = reinterpret_cast<my_bool *>(&error[0]);
 
         ///* INTEGER COLUMN */
         //bind[0].buffer_type = MYSQL_TYPE_LONG;
@@ -2231,11 +2526,23 @@ bool isNotFound(const std::string& wh_page)
 std::string loadPageOrCache(TypeId type, unsigned int id, unsigned int expansion, unsigned int locale, bool silent = false)
 {
     std::string cacheLocation = "cache/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(type) + "/";
+    std::string freshCacheLocation = "cache/" + expansionName(expansion) + "/" + localeName(locale) + "/" + typeName(type) + "_fresh/";
     if (!silent)
         msg_delay("\n> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " : Loading... \n");
 
     // Load Wowhead Page or Cache
-    std::string wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
+    std::string wh_page;
+    bool loadedFresh = false;
+    //if (sDataMgr.LoadWhFresh())
+    //{
+        wh_page = readFromFile(freshCacheLocation + std::to_string(id) + ".txt");
+        if (!wh_page.empty())
+            loadedFresh = true;
+    //}
+    if (wh_page.empty())
+    {
+        wh_page = readFromFile(cacheLocation + std::to_string(id) + ".txt");
+    }
     if (!wh_page.empty())
     {
         if (!silent)
@@ -2264,8 +2571,42 @@ std::string loadPageOrCache(TypeId type, unsigned int id, unsigned int expansion
                 msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Loaded from WH! \n");
                 msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Caching... \n");
             }
-            writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", cacheLocation);
+            if (!loadedFresh)
+                writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", cacheLocation);
+            else
+                writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", freshCacheLocation);
         }
+    }
+    return wh_page;
+}
+
+std::string loadPageNoCache(TypeId type, unsigned int id, unsigned int expansion, unsigned int locale, bool silent = false)
+{
+    // Load Wowhead Page without Cache
+    unsigned int error_code;
+    std::string wh_page = load_WH_page(type, id, error_code, locale, expansion);
+    if (error_code >= 400)
+    {
+        if (!silent)
+            msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Not Found! (404) \n");
+
+        return "";
+    }
+    else if (isNotFound(wh_page))
+    {
+        if (!silent)
+            msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Not Found! (Not Found) \n");
+
+        return "";
+    }
+    else
+    {
+        if (!silent)
+        {
+            msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Loaded from WH! \n");
+            msg_delay("> " + typeName(type) + " #" + std::to_string(id) + " " + expansionName(expansion) + "-" + localeName(locale) + " Caching... \n");
+        }
+        //writeToFile(wh_page.c_str(), std::to_string(id) + ".txt", cacheLocation);
     }
     return wh_page;
 }
@@ -2307,9 +2648,13 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
     // load if not cached
     if (max_id == 0)
     {
-        for (auto e = 1; e < 4 + 1; ++e) // expansion
+        for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
         {
             if (expansion != 0 && e != expansion)
+                continue;
+
+            // test skip retail for now
+            if (e == 5)
                 continue;
 
             bool noEnglishPage = false; // speed up missing quests process
@@ -2318,7 +2663,7 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                 if (locale != 0 && i != locale)
                     continue;
 
-                if (localeName(i).empty() || localeName(i) == "tw" || localeName(i) == "pt" || localeName(i) == "it")
+                if (localeName(i).empty() || localeName(i) == "tw" || localeName(i) == "pt"/* || localeName(i) == "it"*/)
                     continue;
 
                 if (noEnglishPage)
@@ -2387,9 +2732,13 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
     {
         for (auto id = min_id; id < max_id + 1; ++id)
         {
-            for (auto e = 1; e < 4 + 1; ++e) // expansion
+            for (auto e = 1; e <= MAX_EXPANSION; ++e) // expansion
             {
                 if (expansion != 0 && e != expansion)
+                    continue;
+
+                // test skip retail for now
+                if (e == 5)
                     continue;
 
 #ifdef SKIP_NONDB
@@ -2429,6 +2778,16 @@ void cachePagesRange(TypeId type, unsigned int min_id, unsigned int max_id, unsi
                         msg_nodelay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i) + ": Already cached, skipping...");
                     else
                     {
+                        // test skip if no english cached
+                        std::string enCache = "cache/" + expansionName(e) + "/" + localeName(1) + "/" + typeName(type) + "/";
+                        std::string enPage = readFromFile(enCache + std::to_string(id) + ".txt");
+                        if (enPage.empty() && i != 1)
+                        {
+                            msg_nodelay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + ": EN not cached, skipping...");
+                            noEnglishPage = true;
+                            continue;
+                        }
+
                         std::string page = loadPageOrCache(type, id, e, i, true);
                         if (!page.empty())
                             msg_delay("\n> " + typeName(type) + " # (" + std::to_string(id) + "/" + std::to_string(max_id) + ") " + expansionName(e) + "-" + localeName(i));
@@ -2823,7 +3182,13 @@ const char* parse_details(std::ostringstream& query_result, GumboNode* node, Gum
                                 }
                             }
                             else if (childNode->type == GUMBO_NODE_TEXT)
-                                query_result << childNode->v.text.text;
+                            {
+                                std::string checkstr = childNode->v.text.text;
+                                if (ignoreContent != NULL && checkstr.find(ignoreContent) != std::string::npos)
+                                    continue;
+
+                                query_result << checkstr.c_str();
+                            }
                         }
                     }
                 }
@@ -2877,6 +3242,7 @@ void parse_quest(std::ostringstream& query_result, GumboNode* node, unsigned int
         attr_second_value = "icon-list";
         steps_back = 0;
         preType = GUMBO_NODE_TEXT;
+        ignoreContent = ": "; // Provided item:
         break;
     case 3: // Details
         attr_name = "class";
@@ -2957,7 +3323,28 @@ std::string ReadQuestText(GumboOutput* parsedPage, const std::string& questPart,
     if (!questPartId)
         return "";
 
-    return parse_quest(parsedPage->root, questPartId, locale, hotfix);
+    std::string parse_result = parse_quest(parsedPage->root, questPartId, locale, hotfix);
+
+    // hackfix for english copies bad parses
+    //if (parse_result.front() == '[' || parse_result.back() == ']')
+    //    return "";
+
+    if (parse_result.find("DEPRECATED") != std::string::npos)
+        return "";
+
+    if (parse_result.find("deprecated") != std::string::npos)
+        return "";
+
+    if (locale == 5 || locale == 8 || locale == 2)
+    {
+        if (parse_result.find('[') != std::string::npos)
+            return "";
+
+        if (parse_result.find(']') != std::string::npos)
+            return "";
+    }
+
+    return parse_result;
 }
 
 std::string LoadQuestText(DatabaseConnect* dbCon, uint32 id, const std::string& questPart, uint32 locale)
@@ -4233,7 +4620,8 @@ int main(int argc, char* argv[])
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
+            std::cout << "4) Cata \n";
+            std::cout << "5) Retail \n";
             std::cin >> expansion;
 
             // Choose locale
@@ -4360,27 +4748,27 @@ int main(int argc, char* argv[])
                 tb.add_row({"WH Title"});
                 tb.print(std::cout);*/
 
-                msg_delay("\n> WH Title: " + qInfo->GetTitle() + "\n");
+                msg_delay("\n> WH Title: " + qInfo->GetTitle() + (IsSameString(qInfo->GetTitle(), qInfo->GetTitle(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Title EN: " + qInfo->GetTitle(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB Title: " + qDbInfo->GetTitle() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Title EN: " + qDbInfo->GetTitle(expansion, 1) + "\n");
-                msg_delay("\n> WH Objectives: " + qInfo->GetObjectives() + "\n");
+                msg_delay("\n> WH Objectives: " + qInfo->GetObjectives() + (IsSameString(qInfo->GetObjectives(), qInfo->GetObjectives(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Objectives EN: " + qInfo->GetObjectives(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB Objectives: " + qDbInfo->GetObjectives() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Objectives EN: " + qDbInfo->GetObjectives(expansion, 1) + "\n");
-                msg_delay("\n> WH Details: " + qInfo->GetDetails() + "\n");
+                msg_delay("\n> WH Details: " + qInfo->GetDetails() + (IsSameString(qInfo->GetDetails(), qInfo->GetDetails(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH Details EN: " + qInfo->GetDetails(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB Details: " + qDbInfo->GetDetails() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB Details EN: " + qDbInfo->GetDetails(expansion, 1) + "\n");
-                msg_delay("\n> WH ReqItemText: " + qInfo->GetRequestItemText() + "\n");
+                msg_delay("\n> WH ReqItemText: " + qInfo->GetRequestItemText() + (IsSameString(qInfo->GetRequestItemText(), qInfo->GetRequestItemText(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH ReqItemText EN: " + qInfo->GetRequestItemText(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB ReqItemText: " + qDbInfo->GetRequestItemText() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB ReqItemText EN: " + qDbInfo->GetRequestItemText(expansion, 1) + "\n");
-                msg_delay("\n> WH OfferRewardText: " + qInfo->GetOfferRewardText() + "\n");
+                msg_delay("\n> WH OfferRewardText: " + qInfo->GetOfferRewardText() + (IsSameString(qInfo->GetOfferRewardText(), qInfo->GetOfferRewardText(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH OfferRewardText EN: " + qInfo->GetOfferRewardText(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB OfferRewardText: " + qDbInfo->GetOfferRewardText() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB OfferRewardText EN: " + qDbInfo->GetOfferRewardText(expansion, 1) + "\n");
-                msg_delay("\n> WH EndText: " + qInfo->GetEndText() + "\n");
+                msg_delay("\n> WH EndText: " + qInfo->GetEndText() + (IsSameString(qInfo->GetEndText(), qInfo->GetEndText(expansion, 1)) ? " <Same as English>" : "") + "\n");
                 if (qInfo->GetCurLocale() != 1) msg_delay("\n> WH EndText EN: " + qInfo->GetEndText(expansion, 1) + "\n");
                 if (qDbInfo) msg_delay("\n> DB EndText: " + qDbInfo->GetEndText() + "\n");
                 if (qDbInfo->GetCurLocale() != 1) msg_delay("\n> DB EndText EN: " + qDbInfo->GetEndText(expansion, 1) + "\n");
@@ -4655,7 +5043,8 @@ int main(int argc, char* argv[])
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
+            std::cout << "4) Cata \n";
+            std::cout << "5) Cata \n";
             std::cin >> expansion;
 
             // Choose locale
@@ -4702,7 +5091,8 @@ int main(int argc, char* argv[])
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
+            std::cout << "4) Cata \n";
+            std::cout << "5) Retail \n";
             std::cin >> expansion;
 
             // Choose locale
@@ -5203,7 +5593,8 @@ int main(int argc, char* argv[])
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
+            std::cout << "4) Cata \n";
+            std::cout << "5) Retail \n";
             std::cin >> expansion;
 
             // Choose locale
@@ -5694,7 +6085,8 @@ int main(int argc, char* argv[])
             std::cout << "1) Classic \n";
             std::cout << "2) TBC \n";
             std::cout << "3) WotLK \n";
-            std::cout << "4) Retail \n";
+            std::cout << "4) Cata \n";
+            std::cout << "5) Retail \n";
             std::cin >> expansion;
 
             // Choose locale
@@ -5705,6 +6097,7 @@ int main(int argc, char* argv[])
             std::cout << "5) Chinese (LOC 4 + 5) \n";
             std::cout << "6) Spanish (LOC 6 + 7) \n";
             std::cout << "7) Russian (LOC 8)\n";
+            std::cout << "11) Italian (LOC 11)\n";
             std::cin >> locale;
 
             std::cout << "\nSelect Action: \n";
@@ -5951,6 +6344,10 @@ int main(int argc, char* argv[])
                 std::cout << "3) Keep local version \n";
                 std::cin >> updateVersionOption;
 
+                // pt & it locales don't exist in db (yet)
+                if (locale == 10 || locale == 11)
+                    updateVersionOption = 1;
+
                 const bool ignoreDifferentVersion = updateVersionOption >= 3;
                 const bool autoUpdateWowheadVersion = updateVersionOption == 1;
 
@@ -6170,6 +6567,10 @@ int main(int argc, char* argv[])
                             if (locale && locale != i)
                                 continue;
 
+                            // no pt & br locales yet
+                            if (locale == 10 || locale == 11)
+                                continue;
+
                             int trCount = 0;
                             DbConnect->GetDbInt("SELECT COUNT(*) FROM locales_quest WHERE Title_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
                                                                                                                                          " OR Details_loc" + std::to_string(localeRealId(i)) + " IS NOT NULL"
@@ -6236,6 +6637,39 @@ int main(int argc, char* argv[])
                     uint32 missingQuestObjective3 = 0;
                     uint32 missingQuestObjective4 = 0;
 
+                    uint32 missingQuestTitleAPI = 0;
+                    uint32 missingQuestEndTextAPI = 0;
+                    uint32 missingQuestObjTextAPI = 0;
+                    uint32 missingQuestReqTextAPI = 0;
+                    uint32 missingQuestOfferTextAPI = 0;
+                    uint32 missingQuestDetailsAPI = 0;
+                    uint32 missingQuestObjective1API = 0;
+                    uint32 missingQuestObjective2API = 0;
+                    uint32 missingQuestObjective3API = 0;
+                    uint32 missingQuestObjective4API = 0;
+
+                    uint32 missingQuestTitleAPIEmpty = 0;
+                    uint32 missingQuestEndTextAPIEmpty = 0;
+                    uint32 missingQuestObjTextAPIEmpty = 0;
+                    uint32 missingQuestReqTextAPIEmpty = 0;
+                    uint32 missingQuestOfferTextAPIEmpty = 0;
+                    uint32 missingQuestDetailsAPIEmpty = 0;
+                    uint32 missingQuestObjective1APIEmpty = 0;
+                    uint32 missingQuestObjective2APIEmpty = 0;
+                    uint32 missingQuestObjective3APIEmpty = 0;
+                    uint32 missingQuestObjective4APIEmpty = 0;
+
+                    uint32 missingQuestTitleFresh = 0;
+                    uint32 missingQuestEndTextFresh = 0;
+                    uint32 missingQuestObjTextFresh = 0;
+                    uint32 missingQuestReqTextFresh = 0;
+                    uint32 missingQuestOfferTextFresh = 0;
+                    uint32 missingQuestDetailsFresh = 0;
+                    uint32 missingQuestObjective1Fresh = 0;
+                    uint32 missingQuestObjective2Fresh = 0;
+                    uint32 missingQuestObjective3Fresh = 0;
+                    uint32 missingQuestObjective4Fresh = 0;
+
                     uint32 updatedQuestTitle = 0;
                     uint32 updatedQuestEndText = 0;
                     uint32 updatedQuestObjText = 0;
@@ -6292,10 +6726,15 @@ int main(int argc, char* argv[])
                         if (!std::filesystem::is_directory(cacheLocLocation))
                             continue;
 
+                        // save new file
+                        std::string freshCacheLocation = "cache/" + expansionName(e) + "/" + localeName(localeId) + "/" + typeName(TYPE_QUEST) + "_fresh/";
+
                         // read existing update file
                         std::string filesLocation = "work/" + sDataMgr.getProjectName() + "/" + expansionName(expansion) + "/" + typeName(TYPE_QUEST) + "/";
                         //std::string updateStmt = readFromFile(filesLocation + "missingEngTexts.txt");
                         std::string updateQueries;
+                        std::string updateQueriesFresh;
+                        std::string updateQueriesAPI;
 
                         // write command
                         // writeToFile(wh_page.c_str(), std::to_string(id), cacheLocation);
@@ -6312,6 +6751,12 @@ int main(int argc, char* argv[])
                                 WowheadQuestInfo* qWhEngInfo = nullptr;//LoadWowheadQuestInfo(qID, e, 1, true);
                                 WowheadQuestInfo* qWhLocInfo = nullptr;//LoadWowheadQuestInfo(qID, e, localeId, true);
 
+                                // use fresh wowhead data
+                                //WowheadQuestInfo* qWhLocInfoFresh = nullptr;
+                                std::string whPageFresh;
+                                QuestStrings whStringsFresh;
+                                bool whPageFreshLoaded = false;
+
                                 // load english first
                                 DatabaseQuestInfo* qDbLocInfo = LoadDatabaseQuestInfo(qID, e, 1, true, true);
                                 if (!qDbLocInfo)
@@ -6319,7 +6764,18 @@ int main(int argc, char* argv[])
                                     missingDbQuest++;
                                     continue;
                                 }
-                                qDbLocInfo = LoadDatabaseQuestInfo(qID, e, locale, true, true);
+                                if (!(locale == 10 || locale == 11))
+                                    qDbLocInfo = LoadDatabaseQuestInfo(qID, e, locale, true, true);
+
+                                // fake empty db info for pt/it
+                                if (locale == 10 || locale == 11)
+                                {
+                                    QuestStrings qstr;
+                                    qDbLocInfo->SetQuestTexts(e, locale, qstr);
+                                    qDbLocInfo->SetCurLocale(locale);
+                                    qDbLocInfo->SetLoaded(expansion, locale, true);
+                                }
+
                                 if (!qDbLocInfo)
                                     continue;
 
@@ -6359,6 +6815,53 @@ int main(int argc, char* argv[])
                                                 missingQuestTitle++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "title", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.title.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetTitle(e, 1), whStringsFresh.title, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestTitleFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.title, qDbLocInfo, "title", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame() && locale == 7) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(qDbLocInfo->GetTitle(e, 1), e,
+                                                                                      locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestTitleAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "title", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6371,6 +6874,52 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "title", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetTitle(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty() && !whStringsFresh.title.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetTitle(e, 1), whStringsFresh.title, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestTitleFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.title, qDbLocInfo, "title", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty() && locale == 7) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetTitle(e, 1), e, locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestTitleAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "title", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6399,6 +6948,53 @@ int main(int argc, char* argv[])
                                                 missingQuestEndText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "endText", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.endText.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetEndText(e, 1), whStringsFresh.endText, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestEndTextFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.endText, qDbLocInfo, "endText", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame()) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(qDbLocInfo->GetEndText(e, 1), e,
+                                                                                      locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestEndTextAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "endText", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6411,6 +7007,52 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "endText", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetEndText(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty() && !whStringsFresh.endText.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetEndText(e, 1), whStringsFresh.endText, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestEndTextFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.endText, qDbLocInfo, "endText", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty()) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetEndText(e, 1), e, locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestEndTextAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "endText", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6439,6 +7081,53 @@ int main(int argc, char* argv[])
                                                 missingQuestObjText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.objectives.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetObjectives(e, 1), whStringsFresh.objectives, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestObjTextFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.objectives, qDbLocInfo, "objectives", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame()) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(qDbLocInfo->GetObjectives(e, 1),
+                                                                                      e, locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestObjTextAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "objectives", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6451,6 +7140,53 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "objectives", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetObjectives(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty()&& !whStringsFresh.objectives.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetObjectives(e, 1), whStringsFresh.objectives, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestObjTextFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.objectives, qDbLocInfo, "objectives", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty()) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetObjectives(e, 1), e,
+                                                                              locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestObjTextAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "objectives", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6479,6 +7215,53 @@ int main(int argc, char* argv[])
                                                 missingQuestReqText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "requestItemText", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.requestItemText.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetRequestItemText(e, 1), whStringsFresh.requestItemText, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestReqTextFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.requestItemText, qDbLocInfo, "requestItemText", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame()) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(
+                                                            qDbLocInfo->GetRequestItemText(e, 1), e, locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestReqTextAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "requestItemText", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6491,6 +7274,53 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "requestItemText", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetRequestItemText(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty() && !whStringsFresh.requestItemText.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetRequestItemText(e, 1), whStringsFresh.requestItemText, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestReqTextFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.requestItemText, qDbLocInfo, "requestItemText", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty()) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetRequestItemText(e, 1), e,
+                                                                              locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestReqTextAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "requestItemText", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6519,6 +7349,53 @@ int main(int argc, char* argv[])
                                                 missingQuestOfferText++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "offerRewardText", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.offerRewardText.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetOfferRewardText(e, 1), whStringsFresh.offerRewardText, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestOfferTextFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.offerRewardText, qDbLocInfo, "offerRewardText", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame()) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(
+                                                            qDbLocInfo->GetOfferRewardText(e, 1), e, locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestOfferTextAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "offerRewardText", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6531,6 +7408,53 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "offerRewardText", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetOfferRewardText(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty()&& !whStringsFresh.offerRewardText.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetOfferRewardText(e, 1), whStringsFresh.offerRewardText, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestOfferTextFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.offerRewardText, qDbLocInfo, "offerRewardText", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty()) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetOfferRewardText(e, 1), e,
+                                                                              locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestOfferTextAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "offerRewardText", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6559,6 +7483,53 @@ int main(int argc, char* argv[])
                                                 missingQuestDetails++;
                                                 updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "details", e, locale) + "\n";
                                             }
+                                            else
+                                            {
+                                                // load fresh page from WH if not loaded
+                                                bool foundFresh = false;
+                                                if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                                {
+                                                    whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                                    whPageFreshLoaded = true;
+                                                    if (!whPageFresh.empty())
+                                                    {
+                                                        /*if (!whPageFresh.empty())
+                                                            msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                        else
+                                                            msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                        whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                                    }
+                                                }
+                                                if (!whPageFresh.empty() && !whStringsFresh.details.empty())
+                                                {
+                                                    if (!IsSameString(qWhLocInfo->GetDetails(e, 1), whStringsFresh.details, locale, true))
+                                                    {
+                                                        msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                        foundFresh = true;
+                                                        missingQuestDetailsFresh++;
+                                                        updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.details, qDbLocInfo, "details", e, locale) + "\n";
+
+                                                        //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                            writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                                    }
+                                                    else
+                                                        msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                                if (!foundFresh && sDataMgr.TranslateAPISame()) // do not translate non russian as they are often same as english
+                                                {
+                                                    std::string result = APITranslate(qDbLocInfo->GetDetails(e, 1), e,
+                                                                                      locale);
+                                                    if (!result.empty())
+                                                    {
+                                                        msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                        missingQuestDetailsAPI++;
+                                                        updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "details", e, locale) + "\n";
+                                                    }
+                                                    //else
+                                                    //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
+                                                }
+                                            }
                                         }
                                         else if (!ignoreDifferentVersion)
                                         {
@@ -6571,6 +7542,52 @@ int main(int argc, char* argv[])
                                                     updateQueries += updateQuestFromWhQuery(qWhLocInfo, qDbLocInfo, "details", e, locale) + "\n";
                                                 }
                                             }
+                                        }
+                                    }
+                                    else if (!qWhLocInfo->GetDetails(e, 1).empty())
+                                    {
+                                        // load fresh page from WH if not loaded
+                                        bool foundFresh = false;
+                                        if (sDataMgr.LoadWhFresh() && !whPageFreshLoaded)
+                                        {
+                                            whPageFresh = loadPageNoCache(TYPE_QUEST, qID, e, locale, true);
+                                            whPageFreshLoaded = true;
+                                            if (!whPageFresh.empty())
+                                            {
+                                                /*if (!whPageFresh.empty())
+                                                    msg_delay("WH Load Page: OK \n", MSG_DELAY * 10);
+                                                else
+                                                    msg_delay("WH Load Page: FAIL \n", MSG_DELAY * 10);*/
+
+                                                whStringsFresh = LoadQuestCacheStrings(whPageFresh, locale);
+                                            }
+                                        }
+                                        if (!whPageFresh.empty()&& !whStringsFresh.details.empty())
+                                        {
+                                            if (!IsSameString(qWhLocInfo->GetDetails(e, 1), whStringsFresh.details, locale, true))
+                                            {
+                                                msg_delay_set("WH Fresh Page: FOUND! \n", MSG_DELAY * 10);
+                                                foundFresh = true;
+                                                missingQuestDetailsFresh++;
+                                                updateQueriesFresh += updateQuestFromTextQuery(whStringsFresh.details, qDbLocInfo, "details", e, locale) + "\n";
+
+                                                //if (readFromFile(freshCacheLocation + std::to_string(qID) + ".txt").empty())
+                                                    writeToFile(whPageFresh.c_str(), std::to_string(qID) + ".txt", freshCacheLocation);
+                                            }
+                                            else
+                                                msg_delay_set("WH Fresh Page: NOT FOUND! \n", MSG_DELAY * 10);
+                                        }
+                                        if (!foundFresh && sDataMgr.TranslateAPIEmpty()) // do not translate non russian as they are often same as english
+                                        {
+                                            std::string result = APITranslate(qDbLocInfo->GetDetails(e, 1), e, locale);
+                                            if (!result.empty())
+                                            {
+                                                msg_delay_set("Translate API: FOUND! \n", MSG_DELAY * 10);
+                                                missingQuestDetailsAPI++;
+                                                updateQueriesAPI += updateQuestFromTextQuery(result, qDbLocInfo, "details", e, locale) + "\n";
+                                            }
+                                            //else
+                                            //    msg_delay("Translate API: NOT FOUND! \n", MSG_DELAY * 10);
                                         }
                                     }
                                 }
@@ -6743,6 +7760,19 @@ int main(int argc, char* argv[])
                         {
                             std::string fileName = (!ignoreDifferentVersion ? "update_quest_" : "missing_quest_") + localeName(locale) + ".sql";
                             writeToFile(updateQueries.c_str(), fileName, filesLocation);
+                        }
+                        // write queries to file
+                        if (!updateQueriesAPI.empty())
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_quest_" : "missing_quest_") + localeName(locale) + "_API_Same.sql";
+                            writeToFile(updateQueriesAPI.c_str(), fileName, filesLocation);
+                        }
+
+                        // write queries to file
+                        if (!updateQueriesFresh.empty())
+                        {
+                            std::string fileName = (!ignoreDifferentVersion ? "update_quest_" : "missing_quest_") + localeName(locale) + "_Fresh.sql";
+                            writeToFile(updateQueriesFresh.c_str(), fileName, filesLocation);
                         }
                     }
 
@@ -7336,12 +8366,12 @@ int main(int argc, char* argv[])
                         if (missingDbQuest)
                             msg_delay(">   Missing Quests in DB: %d \n\n", missingDbQuest);
 
-                        msg_delay(">   Added Title: %d \n", missingQuestTitle);
-                        msg_delay(">   Added Objectives: %d \n", missingQuestObjText);
-                        msg_delay(">   Added Details: %d \n", missingQuestDetails);
-                        msg_delay(">   Added RequestItemText: %d \n", missingQuestReqText);
-                        msg_delay(">   Added OfferRewardText: %d \n", missingQuestOfferText);
-                        msg_delay(">   Added EndText: %d \n", missingQuestEndText);
+                        msg_delay(">   Added Title: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestTitle, missingQuestTitleFresh, missingQuestTitleAPI);
+                        msg_delay(">   Added Objectives: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestObjText, missingQuestObjTextFresh, missingQuestObjTextAPI);
+                        msg_delay(">   Added Details: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestDetails, missingQuestDetailsFresh, missingQuestDetailsAPI);
+                        msg_delay(">   Added RequestItemText: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestReqText, missingQuestReqTextFresh, missingQuestReqTextAPI);
+                        msg_delay(">   Added OfferRewardText: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestOfferText, missingQuestOfferTextFresh, missingQuestOfferTextAPI);
+                        msg_delay(">   Added EndText: WH: %d WH_NEW: %d TR_API: %d \n", missingQuestEndText, missingQuestEndTextFresh, missingQuestEndTextAPI);
                         msg_delay(">   Added Objective1-4: %d - %d - %d - %d \n", missingQuestObjective1, missingQuestObjective2, missingQuestObjective3, missingQuestObjective4);
 
                         msg_delay(">   Updated Title: %d \n", updatedQuestTitle);
@@ -8003,6 +9033,7 @@ int main(int argc, char* argv[])
                 maxQuestId[0] = 0;
                 maxQuestId[1] = 0;
                 maxQuestId[2] = 0;
+                maxQuestId[3] = 0;
 
                 // print db data
                 msg_delay("\n");
@@ -8095,9 +9126,11 @@ int main(int argc, char* argv[])
                             qDbLocInfo->LoadEntryData(1, 1);
                             qDbLocInfo->LoadEntryData(2, 1);
                             qDbLocInfo->LoadEntryData(3, 1);
+                            qDbLocInfo->LoadEntryData(4, 1);
                             qDbLocInfo->LoadEntryData(1, locale);
                             qDbLocInfo->LoadEntryData(2, locale);
                             qDbLocInfo->LoadEntryData(3, locale);
+                            qDbLocInfo->LoadEntryData(4, locale);
                             // set here othwerwise is 1
                             qDbLocInfo->SetCurExpansion(e);
                             qDbLocInfo->SetCurLocale(locale);
@@ -8312,7 +9345,8 @@ int main(int argc, char* argv[])
             std::cerr << "1) Classic \n";
             std::cerr << "2) TBC \n";
             std::cerr << "3) WotLK \n";
-            std::cerr << "4) Retail \n";
+            std::cerr << "4) Cata \n";
+            std::cerr << "5) Retail \n";
             std::cerr << std::endl;
             return 1;
         }
@@ -8325,7 +9359,8 @@ int main(int argc, char* argv[])
             std::cerr << "1) Classic \n";
             std::cerr << "2) TBC \n";
             std::cerr << "3) WotLK \n";
-            std::cerr << "4) Retail \n";
+            std::cerr << "4) Cata \n";
+            std::cerr << "5) Retail \n";
             std::cerr << std::endl;
             return 1;
         }
@@ -8733,12 +9768,6 @@ void DataManager::Initialize()
     if (isInitialized)
         return;
 
-    std::string host = "127.0.0.1";
-    std::string port = "3310";
-    std::string user = "root";
-    std::string password = "123456";
-    std::string projectName = "cmangos";
-
     std::string confStr = readFromFile("wh_parse.conf");
     if (!confStr.empty())
         msg_delay("\nConfig file found, reading parameters...\n");
@@ -8767,6 +9796,12 @@ void DataManager::Initialize()
                     projectInfo.user = value;
                 if (key == "password")
                     projectInfo.password = value;
+                if (key == "translateApiSame")
+                    projectInfo.translateApiSame = std::stoi(value);
+                if (key == "translateApiEmpty")
+                    projectInfo.translateApiEmpty = std::stoi(value);
+                if (key == "loadWhFresh")
+                    projectInfo.loadWhFresh = std::stoi(value);
             }
         }
     }
@@ -8777,6 +9812,9 @@ void DataManager::Initialize()
     msg_delay("\n>   DB Port: %s", projectInfo.port.c_str());
     msg_delay("\n>   DB User: %s", projectInfo.user.c_str());
     msg_delay("\n>   DB Pass: %s", projectInfo.password.c_str());
+    msg_delay("\n>   Translate API same: %s", projectInfo.translateApiSame ? "true" : "false");
+    msg_delay("\n>   Translate API empty: %s", projectInfo.translateApiEmpty ? "true" : "false");
+    msg_delay("\n>   Load Fresh WH pages: %s", projectInfo.loadWhFresh ? "true" : "false");
     msg_delay("\n");
 
     for (auto i = 0; i < MAX_EXPANSION; ++i)

@@ -10,7 +10,7 @@
 #include <sstream>
 #include <filesystem>
 #include <utility>
-#include <mysql/mysql.h>
+#include <mysql.h>
 #include <regex>
 
 typedef std::int64_t int64;
@@ -22,7 +22,7 @@ typedef std::uint32_t uint32;
 typedef std::uint16_t uint16;
 typedef std::uint8_t uint8;
 
-#define MAX_EXPANSION 3
+#define MAX_EXPANSION 4
 #define MAX_LOCALE 11
 #define MAX_QUEST_PARTS 7
 #define SKIP_NONDB 1
@@ -99,6 +99,9 @@ struct ProjectInfo
     std::string user;
     std::string password;
     std::string projectName;
+    bool loadWhFresh;
+    bool translateApiSame;
+    bool translateApiEmpty;
 };
 
 class DatabaseConnect
@@ -305,6 +308,7 @@ public:
         mysqlCon[0] = nullptr;
         mysqlCon[1] = nullptr;
         mysqlCon[2] = nullptr;
+        mysqlCon[3] = nullptr;
         isInitialized = false;
     };
     virtual ~DataManager()
@@ -312,6 +316,7 @@ public:
         delete mysqlCon[0];
         delete mysqlCon[1];
         delete mysqlCon[2];
+        delete mysqlCon[3];
     };
     static DataManager& instance()
     {
@@ -331,6 +336,9 @@ public:
     std::map<uint32, DatabaseGameObjectInfo*> gameObjectDatabaseInfoList;
     bool IsDbOn(uint32 expansion) { return mysqlCon[expansion - 1] != nullptr; }
     [[nodiscard]] std::string getProjectName() const { return projectInfo.projectName; };
+    [[nodiscard]] bool TranslateAPISame() const { return projectInfo.translateApiSame; };
+    [[nodiscard]] bool TranslateAPIEmpty() const { return projectInfo.translateApiEmpty; };
+    [[nodiscard]] bool LoadWhFresh() const { return projectInfo.loadWhFresh; };
 
 private:
     ProjectInfo projectInfo;
